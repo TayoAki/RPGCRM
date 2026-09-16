@@ -1,6 +1,13 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* KPI tile figure: scales with the tile's own width (cqi = 1% of the container inline size)
+   so long money values shrink instead of overflowing, and never exceeds text-2xl. */
+@utility stat-value {
+  font-size: clamp(1.125rem, 13cqi, 1.5rem);
+  line-height: 1.25;
+}
+
 :root {
   --radius: 0.75rem;
   --background: #f7f7fb;

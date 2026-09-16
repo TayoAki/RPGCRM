@@ -32,7 +32,7 @@ function IntakeCard({ intake }: { intake: EmailIntake }) {
         </div>
       </div>
       <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap rounded-md bg-secondary p-2 text-xs text-muted-foreground">{intake.body}</pre>
-      <div className="mt-3 grid gap-2 md:grid-cols-3">
+      <div className="mt-3 grid gap-2 @2xl:grid-cols-3">
         <Field label={`Customer ${pctLabel(intake.parsed.fieldConfidence.customer)}`}>
           <NativeSelect value={p.customerId ?? ""} onChange={(e) => setEdits((x) => ({ ...x, customerId: e.target.value || undefined, deliveryLocationId: undefined }))}>
             <option value="">— not matched —</option>

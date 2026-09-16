@@ -79,7 +79,7 @@ export default function BillingPage() {
           />
           {inv ? (
             <SectionCard title={`${inv.invoiceNumber} · ${customerName(state, inv.customerId)}`} action={<StatusBadge label={titleCase(inv.status)} className={INVOICE_STATUS_STYLE[inv.status]} />}>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 @xl:grid-cols-2">
                 <div className="space-y-1.5 text-sm">
                   <KV label="Issued / due">{fmtDate(inv.issueDate)} / {fmtDate(inv.dueDate)}</KV>
                   {inv.lines.map((l) => (

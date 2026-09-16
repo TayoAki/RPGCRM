@@ -22,7 +22,13 @@ export function PageHeader({ title, description, actions, children }: { title: s
 }
 
 export function Page({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn("h-full overflow-auto p-6", className)}><div className="space-y-6">{children}</div></div>;
+  // The inner wrapper is a container-query root: grids below choose their column count from the
+  // width actually available to the page (nav rail and copilot sidebar excluded), not the window.
+  return (
+    <div className={cn("h-full overflow-auto p-6", className)}>
+      <div className="@container space-y-6">{children}</div>
+    </div>
+  );
 }
 
 export function StatusBadge({ label, className, title }: { label: string; className?: string; title?: string }) {
@@ -46,9 +52,10 @@ export function SectionCard({ title, action, className, children, padded = true 
 export function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "good" | "bad" | "warn" }) {
   const color = tone === "good" ? "text-[color:var(--risk-low)]" : tone === "bad" ? "text-[color:var(--risk-high)]" : tone === "warn" ? "text-[color:var(--risk-medium)]" : "";
   return (
-    <Card className="gap-0 p-4">
+    <Card className="@container min-w-0 gap-0 p-4">
       <div className="text-xs font-medium text-muted-foreground">{label}</div>
-      <div className={cn("mt-1 text-2xl font-semibold tabular-nums", color)}>{value}</div>
+      {/* stat-value scales the figure with the tile width (see globals.css); nowrap keeps "41,645 gal" on one line. */}
+      <div className={cn("stat-value mt-1 whitespace-nowrap font-semibold tabular-nums", color)} title={value}>{value}</div>
       {sub ? <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div> : null}
     </Card>
   );

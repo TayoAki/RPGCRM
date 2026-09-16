@@ -17,7 +17,7 @@ export default function MarketPage() {
   return (
     <Page>
       <PageHeader title="Fuel market tracker" description="Benchmarks and rack averages with a next-day direction estimate. The forecast is a simple momentum model; its backtested hit rate is shown so you can weigh it." actions={<Button size="sm" disabled={!!busy} onClick={() => act("market/refresh").catch(() => undefined)}>Refresh market feed</Button>} />
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 @2xl:grid-cols-2">
         {state.priceIndexes.map((idx) => {
           const hist = state.indexPrices.filter((p) => p.indexId === idx.id).sort((a, b) => a.date.localeCompare(b.date));
           const latest = hist[hist.length - 1];

@@ -8,7 +8,7 @@ export default function NetworkPage() {
   return (
     <Page>
       <PageHeader title="Suppliers, terminals & carriers" description="Reference data the pricing engine, BOL matching, and freight costs depend on. Config-driven so new partners are rows, not code." />
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 @2xl:grid-cols-2">
         <SectionCard title="Suppliers">
           <DataTable dense rows={state.suppliers} rowKey={(s) => s.id} columns={[
             { key: "n", header: "Supplier", render: (s) => <span className="font-medium">{s.name}</span> },
@@ -42,7 +42,7 @@ export default function NetworkPage() {
             { key: "m", header: "Minimum", align: "right", render: (r) => money(r.minimumCharge, 0) },
           ]} />
         </SectionCard>
-        <SectionCard title="Products & tax categories" className="xl:col-span-2">
+        <SectionCard title="Products & tax categories" className="@2xl:col-span-2">
           <DataTable dense rows={state.products} rowKey={(p) => p.id} columns={[
             { key: "n", header: "Product", render: (p) => <span className="font-medium">{p.name}</span> },
             { key: "c", header: "Code", render: (p) => p.code },

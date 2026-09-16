@@ -92,9 +92,9 @@ export default function PricingPage() {
           ]} />
         </TabsContent>
         <TabsContent value="quote" className="pt-3">
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 @2xl:grid-cols-2">
             <SectionCard title="Quote a price">
-              <form className="grid gap-3 md:grid-cols-2" onSubmit={(e) => { e.preventDefault(); void runQuote(); }}>
+              <form className="grid gap-3 @xl:grid-cols-2" onSubmit={(e) => { e.preventDefault(); void runQuote(); }}>
                 <Field label="Customer"><NativeSelect value={q.customerId} onChange={(e) => setQ({ ...q, customerId: e.target.value, deliveryLocationId: "" })} required><option value="">Select…</option>{state.customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</NativeSelect></Field>
                 <Field label="Product"><NativeSelect value={q.productId} onChange={(e) => setQ({ ...q, productId: e.target.value })} required><option value="">Select…</option>{state.products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</NativeSelect></Field>
                 <Field label="Terminal (optional)"><NativeSelect value={q.terminalId} onChange={(e) => setQ({ ...q, terminalId: e.target.value })}><option value="">Cheapest rack</option>{state.terminals.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</NativeSelect></Field>

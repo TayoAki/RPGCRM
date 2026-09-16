@@ -36,7 +36,7 @@ export default function ReportsPage() {
   return (
     <Page>
       <PageHeader title="Reports" description="Profitability by load and customer, delivered volume, integration runs, and the audit trail." />
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 @2xl:grid-cols-2">
         <SectionCard title="Delivered gallons, 14 days"><AreaChart data={daily.map((d) => ({ label: fmtDate(d.date), value: d.gallons }))} height={180} /></SectionCard>
         <SectionCard title="Gross profit by customer (delivered loads)">
           {byCustomer.length ? <BarList data={byCustomer.map((r) => ({ label: r.name, value: r.gp, secondary: `${r.loads} loads · ${gal(r.gallons)} · ${r.gallons ? ppg(r.gp / r.gallons) : "—"}` }))} format={(v) => money(v, 0)} /> : <div className="text-sm text-muted-foreground">No delivered loads yet.</div>}
@@ -58,7 +58,7 @@ export default function ReportsPage() {
           { key: "v", header: "Variance", align: "right", render: (m) => m.variance === null ? "—" : <span className={m.variance < 0 ? "text-[color:var(--risk-high)]" : "text-[color:var(--risk-low)]"}>{signed(m.variance, 2)}</span> },
         ]} />
       </SectionCard>
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 @2xl:grid-cols-2">
         <SectionCard title="Integration runs">
           <DataTable dense rows={[...state.integrationRuns].reverse().slice(0, 20)} rowKey={(r) => r.id} columns={[
             { key: "k", header: "Integration", render: (r) => titleCase(r.kind) },

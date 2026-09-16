@@ -43,29 +43,29 @@ export default function DashboardPage() {
     last: [...state.integrationRuns].reverse().find((r) => r.kind === kind),
   }));
   if (loading || !data) {
-    return <Page><div className="grid gap-4 md:grid-cols-5">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div></Page>;
+    return <Page><div className="grid gap-4 @2xl:grid-cols-3 @5xl:grid-cols-5">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div></Page>;
   }
   const m = data.metrics;
   const exc = m.openExceptions.critical + m.openExceptions.warning + m.openExceptions.info;
   return (
     <Page>
       <PageHeader title="Management dashboard" description={`As of ${fmtDateTime(new Date().toISOString())} · ${state.customers.length} customers · ${state.orders.length} orders`} />
-      <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid gap-4 @md:grid-cols-2 @2xl:grid-cols-3 @5xl:grid-cols-5">
         <Stat label="Gallons delivered today" value={gal(m.gallonsDeliveredToday)} sub={`${m.loadsDeliveredToday} load(s)`} />
         <Stat label="Gallons, trailing 7 days" value={gal(m.gallonsDelivered7d)} />
         <Stat label="Revenue, 7 days" value={money(m.revenue7d)} sub={`MTD ${money(m.revenueMtd)} (excl. taxes)`} />
         <Stat label="Actual gross profit, 7 days" value={money(m.actualGrossProfit7d)} sub={`expected ${money(m.expectedGrossProfit7d)}`} tone={m.actualGrossProfit7d >= m.expectedGrossProfit7d ? "good" : "warn"} />
         <Stat label="Profit per gallon, 7 days" value={m.profitPerGallon7d === null ? "—" : ppg(m.profitPerGallon7d)} />
       </div>
-      <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid gap-4 @md:grid-cols-2 @2xl:grid-cols-3 @5xl:grid-cols-5">
         <Stat label="Orders in progress" value={String(m.ordersInProgress)} />
         <Stat label="Emails awaiting review" value={String(m.ordersAwaitingReview)} tone={m.ordersAwaitingReview ? "warn" : undefined} />
         <Stat label="Loads awaiting billing" value={String(m.loadsAwaitingBilling)} />
         <Stat label="Invoices pending approval" value={String(m.invoicesPendingApproval)} tone={m.invoicesPendingApproval ? "warn" : undefined} />
         <Stat label="Open exceptions" value={String(exc)} sub={`${m.openExceptions.critical} critical · ${m.openExceptions.warning} warning`} tone={m.openExceptions.critical ? "bad" : exc ? "warn" : "good"} />
       </div>
-      <div className="grid gap-4 xl:grid-cols-3">
-        <SectionCard title="Gallons delivered, last 14 days" className="xl:col-span-2">
+      <div className="grid gap-4 @2xl:grid-cols-2 @4xl:grid-cols-3">
+        <SectionCard title="Gallons delivered, last 14 days" className="@2xl:col-span-2">
           <AreaChart data={data.daily.map((d) => ({ label: fmtDate(d.date), value: d.gallons }))} height={200} />
         </SectionCard>
         <SectionCard title="Market" action={<Link href="/market" className="text-xs text-primary hover:underline">Open</Link>}>
@@ -83,7 +83,7 @@ export default function DashboardPage() {
           </div>
         </SectionCard>
       </div>
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid gap-4 @2xl:grid-cols-2 @4xl:grid-cols-3">
         <SectionCard title={`Needs attention (${data.triage.totalOpen})`} action={<Link href="/exceptions" className="text-xs text-primary hover:underline">All exceptions</Link>}>
           {data.triage.priorities.length === 0 ? <Empty>No open exceptions.</Empty> : (
             <ol className="space-y-2">
@@ -116,7 +116,7 @@ export default function DashboardPage() {
         </SectionCard>
       </div>
       <SectionCard title="Integrations (sample feeds)" action={<span className="text-xs text-muted-foreground">Each button runs the integration against its sample file</span>}>
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <div className="grid gap-3 @md:grid-cols-2 @2xl:grid-cols-3 @5xl:grid-cols-6">
           {runs.map(({ kind, last }) => (
             <div key={kind} className="rounded-lg border border-border p-3 text-sm">
               <div className="font-medium">{titleCase(kind)}</div>

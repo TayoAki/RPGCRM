@@ -18,8 +18,8 @@ export default function CustomersPage() {
   return (
     <Page>
       <PageHeader title="Customers" description="Accounts, delivery locations, contacts, terms, and each customer's portal link." />
-      <div className="grid gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2">
+      <div className="grid gap-4 @3xl:grid-cols-3">
+        <div className="@3xl:col-span-2">
           <DataTable rows={state.customers} rowKey={(x) => x.id} selectedKey={selected} onRowClick={(x) => setSelected(x.id)} columns={[
             { key: "n", header: "Customer", render: (x) => <div><div className="font-medium">{x.name}</div><div className="text-xs text-muted-foreground">{x.code} · {x.industry}</div></div> },
             { key: "t", header: "Terms", render: (x) => `Net ${x.paymentTermsDays}` },
