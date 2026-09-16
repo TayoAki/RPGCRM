@@ -88,7 +88,7 @@ names) you keep versus generalize; see section 6.
 | Identity | Avatar initials `NB` and the settings menu name are literals; "Sign out" is a disabled menu item | `frontend/components/TopBar.tsx:56-58`, `frontend/components/NavRail.tsx:219-229` |
 | Tests | Agent: 14 files / 121 tests (store, routes, tools, analytics). Frontend: 2 files / 35 tests, pure lib functions only | `agent/src/**/__tests__`, `frontend/lib/*.test.ts` |
 | CI / e2e | None. `@playwright/test` is a devDependency but no config or specs exist | `frontend/package.json:28` |
-| Deployment | Dockerfiles + `railway.toml` for both services, volume-backed SQLite (added in this commit) | `agent/Dockerfile`, `frontend/Dockerfile`, `README.md` |
+| Deployment | Two Railway services built from Dockerfiles, volume-backed SQLite, config in Railway IaC | `agent/Dockerfile`, `frontend/Dockerfile`, `.railway/railway.ts`, `README.md` |
 | Config surface | Agent: `OPENAI_API_KEY`, `TAVILY_API_KEY`, `PORT`, `NORTHSTAR_DB_PATH`, `MOCK_TAVILY`, `OPENAI_BASE_URL`, `OPENAI_API_MODE`. Frontend: `AGENT_URL` only | `agent/.env.example`, `frontend/app/api/**/route.ts` |
 
 ---
@@ -484,8 +484,8 @@ the duplicated analytics.
 
 ## 5. Phased roadmap
 
-**Phase 0 — Deployed demo (this commit).** Railway, two services, volume-backed
-SQLite, mock-able LLM. Purpose: show the experience, gather feedback. Do not
+**Phase 0 — Deployed demo (done).** Railway project `rpgcrm`, two services,
+volume-backed SQLite, mock-able LLM. Purpose: show the experience, gather feedback. Do not
 share the URL publicly for long; it has no authentication and spends your API
 keys.
 

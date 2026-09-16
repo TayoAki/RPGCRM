@@ -12,6 +12,7 @@
     "install:all": "npm install && npm --prefix agent install && npm --prefix frontend install"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.1.2",
+    "railway": "^3.11.0"
   }
 }
