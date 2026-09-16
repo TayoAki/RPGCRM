@@ -46,6 +46,16 @@ model in [RPG_DATA_MODEL.md](./RPG_DATA_MODEL.md) and the build plan in
 Reference data (customers, delivery locations, contacts, products, suppliers,
 terminals, carriers, indexes, tax rates) lives under `/customers` and `/network`.
 
+### Branding
+
+The UI carries the company brand from [royaltypetroleumsgroup.com](https://royaltypetroleumsgroup.com/):
+the official logo (color and white lettering) and drop mark under
+`frontend/public/brand/`, the palette (navy `#0E2F45`, blue `#3993C0`, sky
+`#56B9DE`) as theme tokens in `frontend/app/globals.css`, Poppins headings with
+Open Sans body copy, and the company's positioning line and contact details in
+the customer portal. Brand strings live in one place, `BRAND` in
+`frontend/components/Logo.tsx`.
+
 ### The copilot
 
 The sidebar copilot is a Strands agent with tools over the same service layer the
