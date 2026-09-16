@@ -1,10 +1,11 @@
 "use client";
+import { useEffect, useState } from "react";
 import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react";
 import { useOpsContext } from "@/components/ops-context";
 import { Page, PageHeader, SectionCard, DataTable, StatusBadge } from "@/components/ops/primitives";
 import { AreaChart } from "@/components/charts";
 import { Button } from "@/components/ui/button";
-import { fmtDate, ppg, signed } from "@/lib/ops";
+import { fmtDate, ppg, relativeTime, signed } from "@/lib/ops";
 
 function Dir({ d, className = "h-5 w-5" }: { d: string; className?: string }) {
   if (d === "up") return <ArrowUpRight className={`${className} text-[color:var(--risk-high)]`} />;
@@ -13,10 +14,31 @@ function Dir({ d, className = "h-5 w-5" }: { d: string; className?: string }) {
 }
 
 export default function MarketPage() {
-  const { state, act, busy } = useOpsContext();
+  const { state, act, busy, version } = useOpsContext();
+  // Which connector feeds the indexes (EIA when the agent has a key, otherwise the sample file).
+  const [source, setSource] = useState<{ kind: string; name: string; configured: boolean; detail?: string; lastRun: { finishedAt: string; summary: string } | null } | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => {
+    act<NonNullable<typeof source>>("integrations/index-source", undefined, "GET").then(setSource).catch(() => undefined);
+  }, [act, version]);
+  const refresh = async () => {
+    try {
+      const r = await act<{ feed: { summary: string }; skipped: { ref: string; reason: string }[] }>("market/refresh");
+      setNote(`${r.feed.summary}${r.skipped.length ? ` · ${r.skipped.map((s) => `${s.ref}: ${s.reason}`).join("; ")}` : ""}`);
+    } catch { /* toast shows it */ }
+  };
   return (
     <Page>
-      <PageHeader title="Fuel market tracker" description="Benchmarks and rack averages with a next-day direction estimate. The forecast is a simple momentum model; its backtested hit rate is shown so you can weigh it." actions={<Button size="sm" disabled={!!busy} onClick={() => act("market/refresh").catch(() => undefined)}>Refresh market feed</Button>} />
+      <PageHeader title="Fuel market tracker" description="Benchmarks and rack averages with a next-day direction estimate. The forecast is a simple momentum model; its backtested hit rate is shown so you can weigh it." actions={<Button size="sm" disabled={!!busy} onClick={refresh}>{source?.kind === "eia" ? "Refresh from EIA" : "Refresh market feed"}</Button>}>
+        {source ? (
+          <p className="text-xs text-muted-foreground">
+            Index source: <span className={source.configured ? "font-medium text-foreground" : "font-medium text-[color:var(--risk-medium)]"}>{source.name}{source.configured ? "" : " (not configured)"}</span>
+            {source.detail ? <span> · {source.detail}</span> : null}
+            {source.lastRun ? <span> · last refresh {relativeTime(source.lastRun.finishedAt)}: {source.lastRun.summary}</span> : null}
+          </p>
+        ) : null}
+        {note ? <p className="text-xs text-brand-blue">{note}</p> : null}
+      </PageHeader>
       <div className="grid gap-4 @2xl:grid-cols-2">
         {state.priceIndexes.map((idx) => {
           const hist = state.indexPrices.filter((p) => p.indexId === idx.id).sort((a, b) => a.date.localeCompare(b.date));

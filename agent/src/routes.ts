@@ -3,7 +3,7 @@ import type { Express, Request, Response } from "express";
 import { ops } from "./domain/store.js";
 import type { OrderStatus, LoadStatus, BillingStatus, PricingRule, RollupPeriod, IntegrationRun } from "./domain/types.js";
 import { customerProfitability, dailySeries, dashboardMetrics, DEFAULT_ROLLUP_COUNT, periodRollups, rollupTotals } from "./analytics.js";
-import { enterRackPrice, importRackFeed, priceBoard, quotePrice, upsertPricingRule } from "./services/pricing.js";
+import { enterRackPrice, importRackFeed, priceBoard, quotePrice, uploadRackSheet, upsertPricingRule } from "./services/pricing.js";
 import { marketSummary, refreshIndexFeed, runForecast } from "./services/market.js";
 import { createOrder, releaseCreditHold, reviewIntake, runEmailIntake, setOrderStatus } from "./services/orders.js";
 import { createLoadForOrder, ingestBol, matchBolToLoad, pullBolFeed, recordDelivery, setBillingStatus, setLoadStatus } from "./services/loads.js";
@@ -13,6 +13,8 @@ import { recomputeAll } from "./services/context.js";
 import { portalData, portalLogin, portalLogout, portalSessionFor } from "./services/portal.js";
 import { sampleBolSource } from "./integrations/bol/source.js";
 import { resolveBolSource } from "./integrations/bol/dtn.js";
+import { sampleIndexSource } from "./integrations/market/source.js";
+import { resolveIndexSource } from "./integrations/market/eia.js";
 import { currentActor } from "./services/actor.js";
 import { bearerToken, changeStaffPassword, publicStaff, staffLogin, staffLogout } from "./services/staffAuth.js";
 import type { StaffIdentity } from "./services/staffAuth.js";
@@ -100,6 +102,12 @@ export function registerOpsRoutes(app: Express): void {
   }));
   app.post("/ops/rack-prices", json, wrap((req) => enterRackPrice(ops, req.body, actor())));
   app.post("/ops/rack-prices/import", json, wrap(() => importRackFeed(ops, actor())));
+  // A supplier's own rack sheet (CSV, Excel, PDF, or text), sent as base64 by the Pricing page.
+  app.post("/ops/rack-prices/upload", express.json({ limit: "12mb" }), wrap(async (req) => {
+    const { filename, contentType, contentBase64, supplierCode, effectiveAt } = (req.body ?? {}) as { filename?: string; contentType?: string; contentBase64?: string; supplierCode?: string; effectiveAt?: string };
+    if (!filename || !contentBase64) throw new Error("filename and contentBase64 are required");
+    return uploadRackSheet(ops, actor(), { filename, contentType: contentType ?? "", contentBase64 }, { supplierCode: supplierCode || undefined, effectiveAt: effectiveAt || undefined });
+  }));
   app.post("/ops/pricing-rules", json, wrap((req) => upsertPricingRule(ops, req.body as PricingRule, actor())));
 
   // Module B: totals by day / week / month for the Reports page.
@@ -112,10 +120,16 @@ export function registerOpsRoutes(app: Express): void {
     return { period: p, count, rollups, totals: rollupTotals(rollups) };
   }));
   app.get("/ops/market", wrap(() => marketSummary(ops, 60)));
-  app.post("/ops/market/refresh", wrap(() => {
-    const feed = refreshIndexFeed(ops);
+  app.post("/ops/market/refresh", wrap(async () => {
+    const feed = await refreshIndexFeed(ops);
     const forecast = runForecast(ops);
-    return { feed: feed.run, forecast: forecast.run, updated: feed.updated, forecasts: forecast.forecasts };
+    return { feed: feed.run, forecast: forecast.run, updated: feed.updated, forecasts: forecast.forecasts, source: feed.source, skipped: feed.skipped };
+  }));
+  // Which connector feeds market indexes right now (EIA when configured, the sample file otherwise).
+  app.get("/ops/integrations/index-source", wrap(() => {
+    const src = resolveIndexSource() ?? sampleIndexSource();
+    const last = ops.all<IntegrationRun>("integrationRuns").filter((r) => r.kind === "index_feed").at(-1) ?? null;
+    return { ...src.describe(), lastRun: last };
   }));
 
   app.post("/ops/intake/run", wrap(() => runEmailIntake(ops)));

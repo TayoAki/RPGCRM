@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Inbox, Truck, Tags, TrendingUp, FileText, Receipt, AlertTriangle, Building2, Factory, BarChart3,
-  PanelLeftClose, PanelLeftOpen, UserCircle2,
+  PanelLeftClose, PanelLeftOpen, UserCircle2, BookOpen,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,7 @@ import { openExceptions } from "@/lib/ops";
 type NavItem = { label: string; href: string; icon: LucideIcon; badge?: (n: { exceptions: number; intake: number; approvals: number }) => number };
 
 const NAV: NavItem[] = [
+  { label: "Start here", href: "/guide", icon: BookOpen },
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "Orders & Intake", href: "/orders", icon: Inbox, badge: (n) => n.intake },
   { label: "Loads", href: "/loads", icon: Truck },

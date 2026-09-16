@@ -8,6 +8,7 @@ import { AreaChart, BarList } from "@/components/charts";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fmtDate, fmtDateTime, gal, money, ppg, relativeTime, SEVERITY_STYLE, signed, titleCase } from "@/lib/ops";
+import { StartHere } from "@/components/StartHere";
 
 interface Dashboard {
   metrics: {
@@ -50,6 +51,7 @@ export default function DashboardPage() {
   return (
     <Page>
       <PageHeader title="Management dashboard" description={`As of ${fmtDateTime(new Date().toISOString())} · ${state.customers.length} customers · ${state.orders.length} orders`} />
+      <StartHere />
       <div className="grid gap-4 @md:grid-cols-2 @2xl:grid-cols-3 @5xl:grid-cols-5">
         <Stat label="Gallons delivered today" value={gal(m.gallonsDeliveredToday)} sub={`${m.loadsDeliveredToday} load(s)`} />
         <Stat label="Gallons, trailing 7 days" value={gal(m.gallonsDelivered7d)} />

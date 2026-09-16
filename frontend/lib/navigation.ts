@@ -14,6 +14,7 @@ export const PAGE_ROUTES = {
   customers: "/customers",
   network: "/network",
   reports: "/reports",
+  guide: "/guide",
 } as const;
 
 export type PageKey = keyof typeof PAGE_ROUTES;
@@ -32,6 +33,7 @@ export const PAGE_TITLES: Record<string, string> = {
   "/customers": "Customers",
   "/network": "Suppliers, Terminals & Carriers",
   "/reports": "Reports",
+  "/guide": "Start here",
 };
 
 export function pageToRoute(page: string): string {

@@ -38,12 +38,12 @@ export const marketUpdateTool = tool({
 
 export const refreshMarketFeedTool = tool({
   name: "refresh_market_feed",
-  description: "Pull today's index values from the market feed (sample data in this MVP) and re-run the next-day forecast.",
+  description: "Pull index values from the market feed (the sample file, or EIA open data when the agent has an EIA_API_KEY) and re-run the next-day forecast.",
   inputSchema: z.object({}),
-  callback: () => {
-    const feed = refreshIndexFeed(ops);
+  callback: async () => {
+    const feed = await refreshIndexFeed(ops);
     const fc = runForecast(ops);
-    return { feed: feed.run.summary, forecast: fc.run.summary, indexes: marketSummary(ops, 14).map((m) => ({ ...m, history: m.history.slice(-14) })) } as unknown as JSONValue;
+    return { feed: feed.run.summary, source: feed.source.name, skipped: feed.skipped, forecast: fc.run.summary, indexes: marketSummary(ops, 14).map((m) => ({ ...m, history: m.history.slice(-14) })) } as unknown as JSONValue;
   },
 });
 

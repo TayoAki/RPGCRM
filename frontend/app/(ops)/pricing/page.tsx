@@ -5,6 +5,7 @@ import { Page, PageHeader, DataTable, StatusBadge, SectionCard, NativeSelect, Fi
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { RackPriceSheet } from "@/components/forms/RackPriceSheet";
+import { RackSheetUploadSheet } from "@/components/forms/RackSheetUploadSheet";
 import { PricingRuleSheet } from "@/components/forms/PricingRuleSheet";
 import type { CustomerPrice, PricingRule, RackPrice } from "@/lib/domain";
 import { customerName, fmtDate, fmtDateTime, locationName, ppg, productName, signed, supplierName, terminalName, titleCase, money } from "@/lib/ops";
@@ -16,6 +17,7 @@ export default function PricingPage() {
   const [board, setBoard] = useState<BoardRow[] | null>(null);
   const [boardCustomer, setBoardCustomer] = useState("");
   const [rackOpen, setRackOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [ruleOpen, setRuleOpen] = useState(false);
   const [editRule, setEditRule] = useState<PricingRule | null>(null);
   const [q, setQ] = useState({ customerId: "", productId: "", terminalId: "", deliveryLocationId: "", gallons: "" });
@@ -50,7 +52,7 @@ export default function PricingPage() {
   };
   return (
     <Page>
-      <PageHeader title="Pricing" description="Rack prices in, customer prices out. Rules: most specific wins (location › terminal › customer), then priority." actions={<><Button size="sm" variant="outline" disabled={!!busy} onClick={importRacks}>Import rack feed</Button><Button size="sm" variant="outline" onClick={() => setRackOpen(true)}>Enter rack price</Button><Button size="sm" onClick={() => { setEditRule(null); setRuleOpen(true); }}>New rule</Button></>}>
+      <PageHeader title="Pricing" description="Rack prices in, customer prices out. Bring racks in from the feed, by uploading your supplier's daily sheet, or by hand. Rules: most specific wins (location › terminal › customer), then priority." actions={<><Button size="sm" variant="outline" disabled={!!busy} onClick={importRacks}>Import rack feed</Button><Button size="sm" variant="outline" onClick={() => setUploadOpen(true)}>Upload rack sheet</Button><Button size="sm" variant="outline" onClick={() => setRackOpen(true)}>Enter rack price</Button><Button size="sm" onClick={() => { setEditRule(null); setRuleOpen(true); }}>New rule</Button></>}>
         {importNote ? <p className="text-xs text-brand-blue">{importNote}</p> : null}
       </PageHeader>
       <Tabs defaultValue="board">
@@ -129,6 +131,7 @@ export default function PricingPage() {
         </TabsContent>
       </Tabs>
       {rackOpen ? <RackPriceSheet open={rackOpen} onOpenChange={setRackOpen} /> : null}
+      {uploadOpen ? <RackSheetUploadSheet open={uploadOpen} onOpenChange={setUploadOpen} /> : null}
       {ruleOpen ? <PricingRuleSheet open={ruleOpen} onOpenChange={setRuleOpen} rule={editRule} /> : null}
     </Page>
   );

@@ -1,39 +1,117 @@
 import type { OpsStore } from "../domain/store.js";
 import type { Forecast, IndexPrice, IntegrationRun, PriceIndex } from "../domain/types.js";
 import { backtest, estimateDirection, MODEL_VERSION, realizedDirection } from "../market/forecast.js";
-import { loadSample } from "../samples/loader.js";
 import { recomputeExceptions } from "./context.js";
 
-/** Module C: apply the market feed (sample file of daily changes) for today. */
-export function refreshIndexFeed(store: OpsStore, now: Date = new Date()): { run: IntegrationRun; updated: IndexPrice[] } {
+import { sampleIndexSource } from "../integrations/market/source.js";
+import type { IndexFetchResult, IndexSource, IndexSourceStatus } from "../integrations/market/source.js";
+import { resolveIndexSource } from "../integrations/market/eia.js";
+
+const r4 = (n: number): number => Math.round(n * 10000) / 10000;
+
+/** How far back a backfilling source (EIA) is asked to look on every pull. */
+export const INDEX_BACKFILL_DAYS = 35;
+
+export interface RefreshIndexResult {
+  run: IntegrationRun;
+  updated: IndexPrice[];
+  skipped: IndexFetchResult["skipped"];
+  source: IndexSourceStatus;
+}
+
+/**
+ * Module C: pull index values from the market feed (the sample file, or EIA
+ * open data when EIA_API_KEY is set) and store them. Quotes are absolute
+ * values per date: new dates are added, a quote for a date already held
+ * replaces it (real values overwrite the seeded history), and day-over-day
+ * changes are recomputed for the indexes touched. A source failure is
+ * recorded as a failed run rather than thrown.
+ */
+export async function refreshIndexFeed(store: OpsStore, now: Date = new Date(), source: IndexSource = resolveIndexSource() ?? sampleIndexSource()): Promise<RefreshIndexResult> {
   const startedAt = now.toISOString();
   const today = now.toISOString().slice(0, 10);
-  const file = loadSample<{ changes: { indexCode: string; change: number }[] }>("index-feed.json", now);
-  const updated: IndexPrice[] = [];
-  for (const ch of file.changes) {
-    const idx = store.all<PriceIndex>("priceIndexes").find((i) => i.code === ch.indexCode);
-    if (!idx) continue;
-    const history = store.all<IndexPrice>("indexPrices").filter((p) => p.indexId === idx.id).sort((a, b) => a.date.localeCompare(b.date));
-    const last = history[history.length - 1];
-    if (last && last.date >= today) continue; // already have today's value
-    const value = Math.round(((last?.value ?? 2.5) + ch.change) * 10000) / 10000;
-    const row: IndexPrice = { id: store.nextId("indexPrices", "ip-"), indexId: idx.id, date: today, value, change: Math.round(ch.change * 10000) / 10000 };
-    store.save("indexPrices", row);
-    updated.push(row);
+  const status = source.describe();
+  const indexes = store.all<PriceIndex>("priceIndexes");
+  const latest: Record<string, { date: string; value: number } | undefined> = {};
+  for (const idx of indexes) {
+    const last = store.all<IndexPrice>("indexPrices").filter((p) => p.indexId === idx.id).sort((a, b) => b.date.localeCompare(a.date))[0];
+    latest[idx.code] = last ? { date: last.date, value: last.value } : undefined;
   }
+  const since = new Date(now.getTime() - INDEX_BACKFILL_DAYS * 86_400_000).toISOString().slice(0, 10);
+  let fetched: IndexFetchResult;
+  try {
+    fetched = await source.fetch({ indexes, latest, since }, now);
+  } catch (e) {
+    const run: IntegrationRun = {
+      id: store.nextId("integrationRuns", "run-"),
+      kind: "index_feed",
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      status: "failed",
+      recordsIn: 0,
+      recordsOut: 0,
+      summary: `Market feed pull failed: ${(e as Error).message}`,
+      source: status.name,
+    };
+    store.save("integrationRuns", run);
+    return { run, updated: [], skipped: [], source: status };
+  }
+  const skipped = [...fetched.skipped];
+  const updatedIds: string[] = [];
+  const touched = new Set<string>();
+  for (const q of fetched.quotes) {
+    const idx = indexes.find((i) => i.code === q.indexCode);
+    if (!idx) {
+      skipped.push({ ref: q.indexCode, reason: "unknown index code" });
+      continue;
+    }
+    if (q.date > today) {
+      skipped.push({ ref: `${q.indexCode}@${q.date}`, reason: "date is in the future" });
+      continue;
+    }
+    if (!(q.value > 0)) {
+      skipped.push({ ref: `${q.indexCode}@${q.date}`, reason: "value must be positive" });
+      continue;
+    }
+    const existing = store.all<IndexPrice>("indexPrices").find((p) => p.indexId === idx.id && p.date === q.date);
+    if (existing && Math.abs(existing.value - q.value) < 0.00005) continue;
+    const row: IndexPrice = { id: existing?.id ?? store.nextId("indexPrices", "ip-"), indexId: idx.id, date: q.date, value: r4(q.value), change: existing?.change ?? 0 };
+    store.save("indexPrices", row);
+    updatedIds.push(row.id);
+    touched.add(idx.id);
+  }
+  for (const indexId of touched) {
+    const hist = store.all<IndexPrice>("indexPrices").filter((p) => p.indexId === indexId).sort((a, b) => a.date.localeCompare(b.date));
+    hist.forEach((p, i) => {
+      if (i === 0) return;
+      const change = r4(p.value - hist[i - 1].value);
+      if (change !== p.change) store.save("indexPrices", { ...p, change });
+    });
+  }
+  for (const [code, label] of Object.entries(fetched.relabel ?? {})) {
+    const idx = indexes.find((i) => i.code === code);
+    if (!idx) continue;
+    const next: PriceIndex = { ...idx, name: label.name ?? idx.name, source: label.source ?? idx.source };
+    if (next.name !== idx.name || next.source !== idx.source) store.save("priceIndexes", next);
+  }
+  const updated = updatedIds.map((id) => store.require<IndexPrice>("indexPrices", id));
+  const latestDate = updated.reduce((m, p) => (p.date > m ? p.date : m), "");
   const run: IntegrationRun = {
     id: store.nextId("integrationRuns", "run-"),
     kind: "index_feed",
     startedAt,
     finishedAt: new Date().toISOString(),
-    status: "success",
-    recordsIn: file.changes.length,
+    status: skipped.length ? "partial" : "success",
+    recordsIn: fetched.quotes.length,
     recordsOut: updated.length,
-    summary: updated.length ? `${updated.length} index value(s) updated for ${today}` : `Indexes already current for ${today}`,
+    summary:
+      (updated.length ? `${updated.length} index value(s) updated${latestDate ? ` through ${latestDate}` : ""}` : `Indexes already current for ${today}`) +
+      (skipped.length ? `; ${skipped.length} skipped` : ""),
+    source: status.name,
   };
   store.save("integrationRuns", run);
   recomputeExceptions(store, now);
-  return { run, updated };
+  return { run, updated, skipped, source: status };
 }
 
 /** Module D: score yesterday's forecasts and estimate tomorrow. */

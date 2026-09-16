@@ -102,8 +102,8 @@ sign-in pages list the demo accounts only when the frontend is built with
 | -------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------- |
 | Order inbox (email)  | `agent/samples/emails.json` + `agent/samples/attachments/` (CSV, XLSX, PDF) | "Run email intake" (Orders page, copilot) or `POST /ops/intake/run` | `agent/src/services/orders.ts` → `runEmailIntake`; attachment bytes go through `agent/src/intake/attachments.ts` |
 | Supplier BOL feed    | `agent/samples/bol-feed.json` (or DTN, see below)                          | "Pull BOL feed" (Loads / BOLs pages, copilot) or `POST /ops/bols/pull` | `agent/src/integrations/bol/` (`BolSource`); DTN connector in `dtn.ts` |
-| Supplier rack feed   | `agent/samples/rack-feed.json`                                             | "Import rack feed" (Pricing page, dashboard, copilot) or `POST /ops/rack-prices/import` | `agent/src/services/pricing.ts` → `importRackFeed` |
-| Market index feed    | `agent/samples/index-feed.json`                                            | "Refresh feed" (Market page, copilot) or `POST /ops/market/refresh` | `agent/src/services/market.ts` → `refreshIndexFeed` |
+| Supplier rack feed   | `agent/samples/rack-feed.json`, or your supplier's own sheet uploaded on the Pricing page (samples in `agent/samples/rack-sheets/`) | "Import rack feed" / "Upload rack sheet" (Pricing page, copilot) or `POST /ops/rack-prices/import` and `/upload` | `agent/src/services/pricing.ts` → `importRackFeed`; sheets parsed by `agent/src/pricing/rack-sheet.ts` |
+| Market index feed    | `agent/samples/index-feed.json`, or EIA daily spot prices when `EIA_API_KEY` is set (see below) | "Refresh feed" (Market page, copilot) or `POST /ops/market/refresh` | `agent/src/integrations/market/` (`IndexSource`); EIA connector in `eia.ts` |
 | QuickBooks Online    | `agent/samples/quickbooks-invoice-template.json`, `quickbooks-payments.json` | "Sync QuickBooks" (Billing page, copilot) or `POST /ops/quickbooks/sync-invoices` and `sync-payments` | `agent/src/integrations/quickbooks/mock.ts` |
 
 Sample files use relative time tokens (`{{DATE+1}}`, `{{DATETIME-5h}}`) that are
@@ -140,14 +140,50 @@ does not know are listed as skipped in the run summary rather than dropped; the
 BOLs page shows the active source and the last pull. Supplier portals or terminal
 exports would be further sources behind the same interface.
 
+### Connecting EIA for market prices
+
+The market feed is a pluggable source too. With nothing configured it reads the
+sample file of daily moves; with a free key from the U.S. Energy Information
+Administration (EIA) it pulls real daily spot prices:
+
+1. Register for a key at https://www.eia.gov/opendata/register.php (free, instant).
+2. Dry-run the crosswalk: `cd agent && EIA_API_KEY=... npx tsx scripts/check-eia.ts`.
+   It prints the latest values per index and anything skipped.
+3. Set `EIA_API_KEY` on the agent service and redeploy. `MARKET_FEED_MODE=off`
+   keeps the sample feed even with a key.
+
+The crosswalk from our index codes to EIA series is
+[`agent/config/eia-series.json`](./agent/config/eia-series.json). EIA publishes
+no rack averages, so Gulf Coast pipeline spot prices stand in for the Dallas
+rack indexes and New York Harbor spot for the NYMEX front months; the index
+names on the Market page change to say so once the feed is live. Each refresh
+backfills the last 35 days, replaces any stored value for the same date, and
+recomputes the day-over-day changes. Values arrive a business day or two
+behind; pricing rules keyed on an index use the latest stored value.
+
+### Uploading a supplier's rack sheet
+
+Suppliers publish their daily rack prices as an email attachment, a PDF price
+notice, or a portal download. **Upload rack sheet** on the Pricing page takes
+the file as it is (CSV, Excel, PDF, or text). Tabular files are read by column
+(supplier, terminal, product, price, and optionally a change and an effective
+time; header names are matched loosely). Documents are read line by line, where
+a line naming a terminal sets the terminal for the product and price lines under
+it. Names are matched to the suppliers, terminals, and products in the store;
+anything that cannot be placed is reported as skipped in the sheet's own words.
+Postings carry a reference built from the file's content hash, so uploading the
+same sheet twice imports nothing new. Three sample sheets live in
+`agent/samples/rack-sheets/` and are downloadable from the upload form.
+
 ## Layout
 
 ```
 agent/                TypeScript Strands agent served over AG-UI by Express (:8000)
   main.ts             agent, system prompt, tool registration, HTTP server
   src/domain/         types, SQLite document store (node:sqlite), deterministic seed
-  src/pricing/        pricing engine and Texas fuel taxes
-  src/market/         index feed and direction forecast
+  src/pricing/        pricing engine, Texas fuel taxes, rack sheet parser
+  src/market/         direction forecast
+  src/integrations/   pluggable feed sources: BOLs (sample, DTN) and market indexes (sample, EIA)
   src/intake/         order email parser
   src/bols/           BOL dedupe and load matching
   src/billing/        invoice builder
@@ -223,7 +259,8 @@ Prefer two terminals? Run `npm --prefix agent run dev` and `npm --prefix fronten
    Open the queue, fix the one with no matching customer, approve the rest. Each
    approval becomes an order.
 3. **Pricing**: press **Import rack feed** to bring in today's supplier postings
-   (the feed is idempotent, so pressing it twice imports nothing new), then ask
+   (the feed is idempotent, so pressing it twice imports nothing new), or
+   **Upload rack sheet** with one of the sample sheets, then ask
    the copilot *"What's today's price for Lone Star Aggregates on ULSD, 7,500
    gallons?"* and compare with the price board. Add a rule and watch the board
    recalculate.
@@ -268,6 +305,8 @@ are ignored.
 | GET    | `/ops/reports/rollups?period=week`                 | Totals by day, week, or month               |
 | GET    | `/ops/price-board`, POST `/ops/price/quote`        | Prices                                      |
 | POST   | `/ops/rack-prices`, `/ops/pricing-rules`           | Pricing inputs                              |
+| POST   | `/ops/rack-prices/upload`                          | A supplier's rack sheet (base64 JSON)       |
+| GET    | `/ops/integrations/bol-source`, `/ops/integrations/index-source` | Which connector feeds BOLs and indexes |
 | GET    | `/ops/market`, POST `/ops/market/refresh`          | Indexes, feed refresh and forecast          |
 | POST   | `/ops/intake/run`, `/ops/intake/:id/review`        | Email intake                                |
 | POST   | `/ops/orders`, `/ops/orders/:id/status`, `/ops/orders/:id/release-hold` | Orders                 |
@@ -317,13 +356,27 @@ every push to the configured branch.
 | `RPG_DB_PATH`                                     | `agent`    | `/data/rpg.db`                                    |
 | `AGENT_URL`                                       | `frontend` | `http://${{agent.RAILWAY_PRIVATE_DOMAIN}}:8000`   |
 | `STAFF_BOOTSTRAP_PASSWORD` (optional)             | `agent`    | password for staff accounts when they are first created; the demo password otherwise |
+| `EIA_API_KEY` (optional)                          | `agent`    | free EIA open-data key; switches the market feed from the sample file to daily spot prices |
 | `NEXT_PUBLIC_DEMO_ACCOUNTS` (optional, build time) | `frontend` | `1` to list the demo accounts on the sign-in pages; unset in production |
 
 To reset the demo data in production, sign in as the admin (Sam Carter) and call
 `POST /api/ops/admin/reseed` with that session, or delete `rpg.db` on the volume
 and redeploy.
 
+## Administering the demo
+
+| Task | How |
+| --- | --- |
+| Staff accounts | The five seeded accounts (table above) with the demo password, or `STAFF_BOOTSTRAP_PASSWORD` if it was set before the first start. Each person changes their own password from the account menu. There is no reset yet: for a forgotten password, clear that user's `passwordHash` in the `staff` row and restart; the migration gives it the bootstrap password again. |
+| Customer portal accounts | One per customer for its ordering contact, demo password `RPGportal!2026`. |
+| Reset the demo data | Sign in as Sam Carter (admin) and `POST /api/ops/admin/reseed`; staff logins and sessions survive. Or delete `rpg.db` on the volume and redeploy. |
+| List demo accounts on the sign-in pages | Build the frontend with `NEXT_PUBLIC_DEMO_ACCOUNTS=1` (unset in production). |
+| Switch a feed from sample to live | Rack prices: upload the supplier's sheet on the Pricing page, no configuration. Market indexes: set `EIA_API_KEY` on the agent. BOLs: set the `DTN_*` variables. Email intake and QuickBooks: not yet ([INTEGRATIONS.md](./INTEGRATIONS.md)). |
+| Tester guide | The **Start here** panel on the dashboard and `/guide` in the app; [BETA_GUIDE.md](./BETA_GUIDE.md) is the same content as a document. |
+
 ## Further reading
+
+- [BETA_GUIDE.md](./BETA_GUIDE.md): the tester guide (sign-in, sample vs live, walkthrough, things to break, reporting, what real data to bring)
 
 - [SAAS_AUDIT.md](./SAAS_AUDIT.md): what it takes to turn this into a multi-tenant SaaS product
 - [AUTH_PLAN.md](./AUTH_PLAN.md): the authentication and authorization plan (Phase 1 built)

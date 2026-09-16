@@ -52,6 +52,9 @@ export default defineRailway(() => {
       // Staff accounts are created with the README's demo password unless this is set
       // before the first start (see README "Staff sign-in").
       // STAFF_BOOTSTRAP_PASSWORD: preserve(),
+      // Market index feed (Module C): a free EIA open-data key switches the Market page
+      // from the sample feed to daily spot prices (see README "Connecting EIA").
+      // EIA_API_KEY: preserve(),
     },
   });
 

@@ -21,11 +21,11 @@ describe("forecast", () => {
     expect(bt.hitRate).toBeGreaterThanOrEqual(0);
   });
 
-  it("feed refresh adds today's values once; forecast targets tomorrow", () => {
+  it("feed refresh adds today's values once; forecast targets tomorrow", async () => {
     const store = freshStore();
-    const first = refreshIndexFeed(store, NOW);
+    const first = await refreshIndexFeed(store, NOW);
     expect(first.updated.length).toBe(4);
-    const second = refreshIndexFeed(store, NOW);
+    const second = await refreshIndexFeed(store, NOW);
     expect(second.updated.length).toBe(0);
     const { forecasts } = runForecast(store, NOW);
     expect(forecasts.every((f) => f.targetDate === "2026-09-17")).toBe(true);

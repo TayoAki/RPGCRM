@@ -1,6 +1,9 @@
 import type { OpsStore } from "../domain/store.js";
 import type { Customer, CustomerPrice, IntegrationRun, PricingRule, Product, RackPrice, Supplier, Terminal } from "../domain/types.js";
 import { loadSample } from "../samples/loader.js";
+import { parseRackSheet } from "../pricing/rack-sheet.js";
+import type { RackSheetOptions } from "../pricing/rack-sheet.js";
+import type { AttachmentInput } from "../intake/attachments.js";
 import { evaluatePrice } from "../pricing/engine.js";
 import type { PriceRequest, PriceResult } from "../pricing/engine.js";
 import { pricingContext, recomputeExceptions, SYSTEM_ACTOR } from "./context.js";
@@ -71,7 +74,7 @@ export interface RackFeedResult {
  * from the rack feed instead of typing them. Postings carry a reference so a
  * feed can be re-imported safely; moves apply to the latest stored rack.
  */
-export function importRackFeed(store: OpsStore, actorId: string, now: Date = new Date(), postings?: RackFeedPosting[]): RackFeedResult {
+export function importRackFeed(store: OpsStore, actorId: string, now: Date = new Date(), postings?: RackFeedPosting[], source: string = postings ? "Postings" : "Sample feed"): RackFeedResult {
   const startedAt = now.toISOString();
   const today = now.toISOString().slice(0, 10);
   const feed = postings ?? loadSample<{ postings: RackFeedPosting[] }>("rack-feed.json", now).postings;
@@ -129,11 +132,31 @@ export function importRackFeed(store: OpsStore, actorId: string, now: Date = new
     summary: imported.length
       ? `${imported.length} rack posting(s) imported for ${today}${skipped.length ? `, ${skipped.length} skipped` : ""}`
       : `Rack postings already current for ${today}${skipped.length ? ` (${skipped.length} skipped)` : ""}`,
+    source,
   };
   store.save("integrationRuns", run);
-  store.audit(actorId, "rackPrice.imported", "integrationRun", run.id, run.summary);
+  store.audit(actorId, "rackPrice.imported", "integrationRun", run.id, `${source}: ${run.summary}`);
   if (imported.length) recomputeExceptions(store, now);
   return { run, imported, skipped };
+}
+
+export interface RackSheetUploadResult extends RackFeedResult {
+  sheet: { filename: string; format: "rows" | "text"; lines: number; supplier?: string; effectiveAt: string; unparsed: { line: string; reason: string }[] };
+}
+
+/**
+ * Module A, from the supplier's own sheet: parse an uploaded rack sheet (CSV,
+ * Excel, PDF, or text) into postings and import them through the same path
+ * as the feed, so the price board recalculates and repeats are skipped.
+ */
+export async function uploadRackSheet(store: OpsStore, actorId: string, att: AttachmentInput, opts: RackSheetOptions = {}, now: Date = new Date()): Promise<RackSheetUploadResult> {
+  const parse = await parseRackSheet(att, { suppliers: store.all<Supplier>("suppliers"), terminals: store.all<Terminal>("terminals"), products: store.all<Product>("products") }, opts, now);
+  if (parse.postings.length === 0) {
+    const why = [...new Set(parse.unparsed.map((u) => u.reason))].slice(0, 3);
+    throw new Error(`No rack prices recognized in ${att.filename}${why.length ? `: ${why.join("; ")}` : ""}`);
+  }
+  const result = importRackFeed(store, actorId, now, parse.postings, `Upload: ${att.filename}`);
+  return { ...result, sheet: { filename: att.filename, format: parse.format, lines: parse.lines, supplier: parse.supplier, effectiveAt: parse.effectiveAt, unparsed: parse.unparsed } };
 }
 
 export type PricingRuleInput = Omit<PricingRule, "id"> & { id?: string };

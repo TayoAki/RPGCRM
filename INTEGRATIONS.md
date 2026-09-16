@@ -18,8 +18,8 @@ Related: [README.md](./README.md) (how each sample is used),
 | Integration | Today | Code seam | Connector status |
 | --- | --- | --- | --- |
 | Supplier electronic BOLs (DTN) | `agent/samples/bol-feed.json` | `BolSource` in `agent/src/integrations/bol/source.ts`; DTN connector in `dtn.ts` (HTTPS pull or directory drop, crosswalk in `agent/config/dtn-bol-map.json`) | **Built**, unconfigured: needs DTN's URL, key, and a real export to finish the crosswalk |
-| Supplier rack prices | `agent/samples/rack-feed.json` | `importRackFeed(store, actor, now, postings?)` in `agent/src/services/pricing.ts` takes an array of postings; idempotent on `postingRef` | Seam ready; no vendor source yet |
-| Market indexes (NYMEX, Gulf Coast pipeline, ethanol, spot) | `agent/samples/index-feed.json` | `refreshIndexFeed` in `agent/src/services/market.ts` reads changes per index code | Seam ready; needs a data vendor |
+| Supplier rack prices | `agent/samples/rack-feed.json`, or the supplier's own sheet uploaded on the Pricing page | `importRackFeed(store, actor, now, postings?)` in `agent/src/services/pricing.ts`; `agent/src/pricing/rack-sheet.ts` turns CSV, Excel, PDF, or text sheets into postings; idempotent on a content-hash `postingRef` | **Built** for the free path (upload the daily sheet); a DTN or OPIS feed would be a further source |
+| Market indexes (NYMEX, Gulf Coast pipeline, spot) | `agent/samples/index-feed.json`, or EIA daily spot prices | `IndexSource` in `agent/src/integrations/market/source.ts`; EIA connector in `eia.ts` with the crosswalk in `agent/config/eia-series.json` | **Built**, unconfigured: needs a free `EIA_API_KEY` (dry run: `scripts/check-eia.ts`) |
 | Order inbox (email + attachments) | `agent/samples/emails.json` + `agent/samples/attachments/` | `runEmailIntake` in `agent/src/services/orders.ts` consumes `InboundEmail` records; `agent/src/intake/attachments.ts` parses CSV, XLSX, PDF, text | Seam ready; needs a mailbox connector |
 | QuickBooks Online | `agent/samples/quickbooks-invoice-template.json`, `quickbooks-payments.json` | `syncInvoicesToQuickBooks` / `syncPaymentsFromQuickBooks` in `agent/src/services/billing.ts` call `agent/src/integrations/quickbooks/mock.ts` | Mock only; needs an Intuit app and sandbox company |
 | Carriers (dispatch, delivery tickets) | manual status changes and delivery entry | `setLoadStatus`, `recordDelivery` in `agent/src/services/loads.ts` | Manual is acceptable for beta; API later |
@@ -132,7 +132,7 @@ scored 1 to 10.
 | Area | Score | Why |
 | --- | --- | --- |
 | Normalized data shapes | 8 | One domain model (`agent/src/domain/types.ts`) shared with the UI by `sync-types`; every feed lands in the same `Bol`, `RackPrice`, `IndexPrice`, `EmailIntake` records regardless of source |
-| Pluggable sources | 7 | BOLs have a real `BolSource` interface with sample and DTN implementations; rack, index, mailbox, and QuickBooks still read samples directly and need the same interface treatment |
+| Pluggable sources | 7.5 | BOLs (`BolSource`: sample, DTN) and market indexes (`IndexSource`: sample, EIA) have real interfaces; rack prices accept postings from the feed or an uploaded sheet; the mailbox and QuickBooks still read samples directly and need the same treatment |
 | Idempotency | 8 | BOLs dedupe on a content hash, rack postings on `postingRef`, emails on `messageId`, index values on date; re-running any feed is safe |
 | Crosswalks (vendor codes to ours) | 7 | Done for DTN in a config file with a dry-run tool; the same pattern is needed for supplier product codes and QuickBooks items |
 | Run tracking and observability | 6 | Every feed records an `integrationRuns` row with counts, status, source, and skipped reasons; no alerting, no retry queue, no metrics endpoint |
@@ -191,18 +191,20 @@ Remaining for 8 (2 to 3 days):
 
 1. **DTN live** (1 to 2 days once the packet arrives): finish the crosswalk
    from a real export, schedule the pull, watch the skipped list to zero.
-2. **One rack price source live** (half a day per source).
-3. **Mailbox connector** (2 to 3 days): Graph or Gmail poll into the existing
+2. **Rack prices from the supplier's sheet**: built. Staff upload the daily
+   sheet on the Pricing page; a subscribed feed (DTN, OPIS) would be a further
+   source behind `importRackFeed` (half a day per source).
+3. **EIA market feed**: built. Register the free key, dry-run
+   `scripts/check-eia.ts`, set `EIA_API_KEY`.
+4. **Mailbox connector** (2 to 3 days): Graph or Gmail poll into the existing
    intake, processed-folder convention, retry on transient errors.
-4. **QuickBooks sandbox** (3 to 5 days): OAuth, invoice create, payment pull,
+5. **QuickBooks sandbox** (3 to 5 days): OAuth, invoice create, payment pull,
    reconciliation report, then production consent.
-5. **Same interface for every feed** (1 day): extract `RackSource`,
-   `IndexSource`, `MailSource`, and `LedgerClient` interfaces like `BolSource`,
-   each with a sample implementation, a `describe()` for the UI, and the run
-   record. This is what makes the rest of the list mechanical.
-6. **Scheduler** (half a day): a small in-process cron for pulls (BOLs hourly,
-   racks and indexes daily, mailbox every few minutes) with manual "pull now"
-   kept.
+6. **Same interface for the remaining feeds** (half a day): `MailSource` and
+   `LedgerClient` like `BolSource` and `IndexSource`, each with a sample
+   implementation, a `describe()` for the UI, and the run record.
+7. **Scheduler** (half a day): a small in-process cron for pulls (BOLs hourly,
+   indexes daily, mailbox every few minutes) with manual "pull now" kept.
 
 Two live connectors plus the interfaces and scheduler is an 8. QuickBooks in
 production is a 9.
