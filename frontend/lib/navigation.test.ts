@@ -1,36 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { pageToRoute, PAGE_ROUTES, PAGE_KEYS } from "./navigation";
+import { PAGE_KEYS, PAGE_ROUTES, pageToRoute } from "./navigation";
 
-describe("pageToRoute", () => {
-  it("maps the dashboard to the home route", () => {
-    expect(pageToRoute("dashboard")).toBe("/");
+describe("navigation", () => {
+  it("maps every page key to a route", () => {
+    for (const k of PAGE_KEYS) expect(pageToRoute(k)).toBe(PAGE_ROUTES[k]);
   });
-
-  it("maps each known page to its route", () => {
-    expect(pageToRoute("pipeline")).toBe("/pipeline");
-    expect(pageToRoute("products")).toBe("/products");
-    expect(pageToRoute("accounts")).toBe("/accounts");
-    expect(pageToRoute("contacts")).toBe("/contacts");
-    expect(pageToRoute("team")).toBe("/team");
-    expect(pageToRoute("reports")).toBe("/reports");
-    expect(pageToRoute("activity")).toBe("/activity");
-  });
-
-  it("falls back to the dashboard for an unknown page", () => {
+  it("falls back to the dashboard", () => {
     expect(pageToRoute("nope")).toBe("/");
-    expect(pageToRoute("")).toBe("/");
   });
-});
-
-describe("PAGE_KEYS", () => {
-  it("lists exactly the keys of PAGE_ROUTES", () => {
-    expect([...PAGE_KEYS].sort()).toEqual(Object.keys(PAGE_ROUTES).sort());
-  });
-
-  it("every key resolves to a defined, non-empty route", () => {
-    for (const key of PAGE_KEYS) {
-      expect(typeof pageToRoute(key)).toBe("string");
-      expect(pageToRoute(key).startsWith("/")).toBe(true);
-    }
+  it("includes the RPG workspace pages", () => {
+    expect(PAGE_KEYS).toEqual(expect.arrayContaining(["orders", "loads", "pricing", "market", "bols", "billing", "exceptions"]));
   });
 });

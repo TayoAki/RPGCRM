@@ -1,0 +1,47 @@
+{
+  "_readme": "Sample inbound order emails for Module H. Date tokens like {{DATE+1}} are replaced with real dates relative to today when the intake job runs, so the sample stays current.",
+  "emails": [
+    {
+      "messageId": "<ord-4488@lonestaraggregates.com>",
+      "receivedAtOffsetHours": -6,
+      "from": "orders@lonestaraggregates.com",
+      "subject": "Fuel order - Pit 4 - PO LSA-4488",
+      "body": "Hi RPG team,\n\nPlease schedule a delivery.\n\nCustomer: Lone Star Aggregates\nLocation: Pit 4 - Ennis, TX\nProduct: Dyed ULSD\nGallons: 7,500\nRequested date: {{DATE+1}} (morning)\nPO: LSA-4488\nNotes: Call the gate 30 minutes before arrival.\n\nThanks,\nRay Hollis"
+    },
+    {
+      "messageId": "<qsm-7712@quickstopmarkets.com>",
+      "receivedAtOffsetHours": -5,
+      "from": "fuel@quickstopmarkets.com",
+      "subject": "Waxahachie store - regular unleaded",
+      "body": "Customer: QuickStop Markets\nLocation: Store 12 - Waxahachie\nProduct: Regular Unleaded 87\nGallons: 8,000\nRequested date: {{DATE+1}}\nPO: QSM-7712\nNotes: Deliver after 9 PM, tanks are behind the store."
+    },
+    {
+      "messageId": "<ptf-fw-yard@prairietrucking.com>",
+      "receivedAtOffsetHours": -4,
+      "from": "dispatch@prairietrucking.com",
+      "subject": "diesel for the yard",
+      "body": "Morning - can we get 6500 gallons of diesel to our Fort Worth yard on {{DATE+2}}? Same as last time. Reference PTF-0915.\n\n- Dale"
+    },
+    {
+      "messageId": "<gcf-2210@gulfcoastfarms.coop>",
+      "receivedAtOffsetHours": -3,
+      "from": "purchasing@gulfcoastfarms.coop",
+      "subject": "PO GCF-2210 dyed diesel Alvin",
+      "body": "Customer: Gulf Coast Farm Coop\nLocation: Alvin bulk tank\nProduct: dyed diesel\nGallons: 7,800\nRequested date: {{DATE+2}}\nPO: GCF-2210\nNotes: Farm exempt certificate on file."
+    },
+    {
+      "messageId": "<bayou-001@bayoumarine.example>",
+      "receivedAtOffsetHours": -2,
+      "from": "ops@bayoumarine.example",
+      "subject": "New account - fuel request",
+      "body": "Hello, Bayou Marine Services would like 3,000 gallons of ULSD delivered to our dock in Freeport on {{DATE+3}}. Please advise on pricing and terms.\n\nRegards, Nina Duval"
+    },
+    {
+      "messageId": "<ord-4488-resend@lonestaraggregates.com>",
+      "receivedAtOffsetHours": -1,
+      "from": "orders@lonestaraggregates.com",
+      "subject": "RE: Fuel order - Pit 4 - PO LSA-4488",
+      "body": "Resending in case the first one did not go through.\n\nCustomer: Lone Star Aggregates\nLocation: Pit 4 - Ennis, TX\nProduct: Dyed ULSD\nGallons: 7,500\nRequested date: {{DATE+1}}\nPO: LSA-4488"
+    }
+  ]
+}

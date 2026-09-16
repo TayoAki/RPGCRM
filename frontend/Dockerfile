@@ -1,4 +1,4 @@
-# Northstar UI: Next.js (App Router) production build.
+# RPG Fuel UI: Next.js (App Router) production build.
 FROM node:22-slim
 
 WORKDIR /app

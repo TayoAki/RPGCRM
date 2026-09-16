@@ -1,0 +1,19 @@
+{
+  "_readme": "Shape of the QuickBooks Online Invoice object the mock returns after a sync, for anyone wiring the real API later.",
+  "Invoice": {
+    "Id": "{{QB_ID}}",
+    "DocNumber": "{{DOC_NUMBER}}",
+    "TxnDate": "{{TXN_DATE}}",
+    "CustomerRef": { "value": "{{QB_CUSTOMER_ID}}", "name": "{{CUSTOMER_NAME}}" },
+    "TotalAmt": "{{TOTAL}}",
+    "Balance": "{{TOTAL}}",
+    "Line": [
+      {
+        "DetailType": "SalesItemLineDetail",
+        "Amount": "{{LINE_AMOUNT}}",
+        "Description": "{{PRODUCT}} {{GALLONS}} gal @ {{PRICE}}",
+        "SalesItemLineDetail": { "Qty": "{{GALLONS}}", "UnitPrice": "{{PRICE}}" }
+      }
+    ]
+  }
+}

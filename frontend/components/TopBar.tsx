@@ -1,62 +1,52 @@
 "use client";
-import { Search, Plus } from "lucide-react";
+import { useState } from "react";
+import { Plus, ChevronDown, RefreshCw } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-
-const TITLES: Record<string, string> = {
-  "/": "Dashboard",
-  "/pipeline": "Pipeline",
-  "/products": "Products",
-  "/accounts": "Accounts",
-  "/contacts": "Contacts",
-  "/team": "Team",
-  "/reports": "Reports",
-  "/reports/weekly": "Weekly Reports",
-  "/reports/team": "Team Reports",
-  "/activity": "Activity",
-};
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { PAGE_TITLES } from "@/lib/navigation";
+import { setActorId } from "@/lib/ops";
+import { useOpsContext } from "@/components/ops-context";
+import { useActorId } from "@/components/Providers";
+import { NewOrderSheet } from "@/components/forms/NewOrderSheet";
 
 export function TopBar() {
   const pathname = usePathname();
-  const title =
-    TITLES[pathname] ??
-    (pathname.startsWith("/quotes") ? "Quote" : "Dashboard");
+  const title = PAGE_TITLES[pathname] ?? (pathname.startsWith("/portal") ? "Customer Portal" : "RPG Fuel");
+  const { state, refresh, busy } = useOpsContext();
+  const actorId = useActorId();
+  const actor = state.staff.find((u) => u.id === actorId);
+  const [newOrder, setNewOrder] = useState(false);
   return (
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-border bg-card px-6">
       <h1 className="text-sm font-semibold">{title}</h1>
-      <div className="relative ml-2 hidden max-w-sm flex-1 items-center sm:flex">
-        <Search className="pointer-events-none absolute left-3 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search deals, accounts, contacts…"
-          className="pl-9"
-          disabled
-        />
+      <div className="ml-auto flex items-center gap-2">
+        <Button size="sm" variant="ghost" onClick={() => void refresh()} disabled={!!busy} title="Refresh data">
+          <RefreshCw className="h-4 w-4" />
+        </Button>
+        <Button size="sm" className="gap-1.5" onClick={() => setNewOrder(true)}>
+          <Plus className="h-4 w-4" /> New order
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" variant="outline" className="gap-1.5">
+              <span className="max-w-[140px] truncate">{actor ? actor.name : "Acting as…"}</span>
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-64">
+            <DropdownMenuLabel>Acting as (until sign-in lands)</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {state.staff.map((u) => (
+              <DropdownMenuItem key={u.id} onClick={() => setActorId(u.id)} className="flex items-center justify-between">
+                <span>{u.name}</span>
+                <span className="text-xs capitalize text-muted-foreground">{u.role}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-      <div className="ml-auto flex items-center gap-3">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span tabIndex={0}>
-                <Button size="sm" disabled className="gap-1.5">
-                  <Plus className="h-4 w-4" /> New deal
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>Coming soon</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        <Avatar className="h-8 w-8">
-          <AvatarFallback>NB</AvatarFallback>
-        </Avatar>
-      </div>
+      <NewOrderSheet open={newOrder} onOpenChange={setNewOrder} />
     </header>
   );
 }

@@ -1,5 +1,5 @@
-# Northstar agent: TypeScript Strands agent served over AG-UI by Express.
-# The CRM store uses the built-in node:sqlite module, which needs Node >= 22.13,
+# RPG Fuel agent: TypeScript Strands agent served over AG-UI by Express.
+# The ops store uses the built-in node:sqlite module, which needs Node >= 22.13,
 # so the Node 22 line is pinned on purpose (Node 20 images will not work).
 FROM node:22-slim
 
@@ -17,6 +17,6 @@ ENV NODE_ENV=production
 ENV PORT=8000
 EXPOSE 8000
 
-# Runs `tsx main.ts`. Set NORTHSTAR_DB_PATH to a path on a mounted volume
-# (for example /data/northstar.db) so the SQLite store survives redeploys.
+# Runs `tsx main.ts`. Set RPG_DB_PATH to a path on a mounted volume
+# (for example /data/rpg.db) so the SQLite store survives redeploys.
 CMD ["npm", "start"]

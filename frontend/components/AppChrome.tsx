@@ -1,31 +1,26 @@
 "use client";
-import { CrmProvider, useCrmContext } from "./crm-context";
+import { OpsProvider, useOpsContext } from "./ops-context";
 import { useCopilotFeatures } from "@/hooks/use-copilot-features";
 import { NavRail } from "./NavRail";
 import { TopBar } from "./TopBar";
-import { DealDrawer } from "./DealDrawer";
 import { AssistantPanel } from "./AssistantPanel";
+import { OrderDrawer } from "./drawers/OrderDrawer";
+import { LoadDrawer } from "./drawers/LoadDrawer";
+import { ErrorToast } from "./ops/ErrorToast";
 
 function Shell({ children }: { children: React.ReactNode }) {
-  const { crm, selectedDealId, setSelectedDealId, moveDealStage } =
-    useCrmContext();
-  useCopilotFeatures({ setSelectedDealId });
+  const { selectedOrderId, setSelectedOrderId, selectedLoadId, setSelectedLoadId } = useOpsContext();
+  useCopilotFeatures({ setSelectedOrderId, setSelectedLoadId });
   return (
     <div className="flex h-screen bg-background text-foreground">
       <NavRail />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar />
-        {/* relative + overflow-hidden so the deal slide-over is contained here, never overlapping the assistant */}
         <main className="relative min-h-0 flex-1 overflow-hidden">
           {children}
-          <DealDrawer
-            crm={crm}
-            dealId={selectedDealId}
-            onOpenChange={(open) => {
-              if (!open) setSelectedDealId(null);
-            }}
-            onMoveStage={moveDealStage}
-          />
+          <OrderDrawer orderId={selectedOrderId} onClose={() => setSelectedOrderId(null)} />
+          <LoadDrawer loadId={selectedLoadId} onClose={() => setSelectedLoadId(null)} />
+          <ErrorToast />
         </main>
       </div>
       <AssistantPanel />
@@ -35,8 +30,8 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
   return (
-    <CrmProvider>
+    <OpsProvider>
       <Shell>{children}</Shell>
-    </CrmProvider>
+    </OpsProvider>
   );
 }

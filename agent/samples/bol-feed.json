@@ -1,0 +1,67 @@
+{
+  "_readme": "Sample supplier/terminal BOL feed for Module E. Time tokens like {{DATETIME-20h}} are replaced relative to now when the feed is pulled. Codes reference the seed's suppliers, terminals, carriers, and products.",
+  "bols": [
+    {
+      "bolNumber": "MOT-HOU-771204",
+      "supplierCode": "MOT",
+      "terminalCode": "HOU",
+      "carrierCode": "BLUEBONNET",
+      "liftedAt": "{{DATETIME-5h}}",
+      "destinationText": "GULF COAST FARMS CO-OP / ALVIN TX",
+      "customerRef": "GCF",
+      "lines": [
+        { "productCode": "DYED", "grossGallons": 7820, "netGallons": 7702, "supplierCostPerGallon": "{{RACK}}", "taxesPerGallon": 0.0025, "feesPerGallon": 0.0025 }
+      ]
+    },
+    {
+      "bolNumber": "MPC-DAL-990311",
+      "supplierCode": "MPC",
+      "terminalCode": "DAL",
+      "carrierCode": "LONESTAR",
+      "liftedAt": "{{DATETIME-3h}}",
+      "destinationText": "QUICKSTOP MARKETS #21 / CLEBURNE TX",
+      "customerRef": "QSM",
+      "lines": [
+        { "productCode": "UNL87", "grossGallons": 8515, "netGallons": 8390, "supplierCostPerGallon": "{{RACK}}", "taxesPerGallon": 0.3855, "feesPerGallon": 0.0025 }
+      ]
+    },
+    {
+      "bolNumber": "MOT-DAL-441902",
+      "supplierCode": "MOT",
+      "terminalCode": "DAL",
+      "carrierCode": "RPG",
+      "liftedAt": "{{DATETIME-30h}}",
+      "destinationText": "TRINITY RIVER CONTRACTORS / DALLAS TX",
+      "customerRef": "TRC",
+      "lines": [
+        { "productCode": "ULSD", "grossGallons": 5010, "netGallons": 4941, "supplierCostPerGallon": "{{RACK}}", "taxesPerGallon": 0.4455, "feesPerGallon": 0.0025 }
+      ]
+    },
+    {
+      "bolNumber": "MPC-DAL-990288",
+      "supplierCode": "MPC",
+      "terminalCode": "DAL",
+      "carrierCode": "LONESTAR",
+      "liftedAt": "{{DATETIME-52h}}",
+      "destinationText": "QUICKSTOP MARKETS #12 / WAXAHACHIE TX",
+      "customerRef": "QSM",
+      "_note": "Duplicate of a BOL already in the system (same number, supplier, and lift time).",
+      "lines": [
+        { "productCode": "UNL87", "grossGallons": 8020, "netGallons": 7905, "supplierCostPerGallon": "{{RACK}}", "taxesPerGallon": 0.3855, "feesPerGallon": 0.0025 }
+      ]
+    },
+    {
+      "bolNumber": "VLO-FTW-120077",
+      "supplierCode": "VLO",
+      "terminalCode": "FTW",
+      "carrierCode": "BLUEBONNET",
+      "liftedAt": "{{DATETIME-8h}}",
+      "destinationText": "ACME OILFIELD SVC / GRANBURY TX",
+      "customerRef": "ACME",
+      "_note": "No matching order or customer: should raise an unassigned-customer exception.",
+      "lines": [
+        { "productCode": "ULSD", "grossGallons": 6000, "netGallons": 5910, "supplierCostPerGallon": "{{RACK}}", "taxesPerGallon": 0.4455, "feesPerGallon": 0.0025 }
+      ]
+    }
+  ]
+}

@@ -2,14 +2,16 @@
   "name": "strands-crm",
   "version": "0.1.0",
   "private": true,
-  "description": "Northstar — an AI sales CRM showcase built with CopilotKit, the AG-UI protocol, and a TypeScript Strands agent.",
+  "description": "RPG Fuel Platform: an agentic fuel operations platform (order intake, pricing, loads, BOLs, billing, profitability) built with CopilotKit, the AG-UI protocol, and a TypeScript Strands agent.",
   "scripts": {
     "dev": "concurrently \"npm run dev:agent\" \"npm run dev:ui\" --names agent,ui --prefix-colors green,blue --kill-others",
     "dev:agent": "npm --prefix agent run dev",
     "dev:ui": "npm --prefix frontend run dev",
     "build": "npm --prefix frontend run build",
-    "test": "npm --prefix agent test",
-    "install:all": "npm install && npm --prefix agent install && npm --prefix frontend install"
+    "test": "npm --prefix agent test && npm --prefix frontend test",
+    "install:all": "npm install && npm --prefix agent install && npm --prefix frontend install",
+    "sync-types": "node scripts/sync-types.mjs",
+    "typecheck": "npm --prefix agent run typecheck && npm --prefix frontend run typecheck"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

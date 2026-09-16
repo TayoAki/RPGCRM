@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useSyncExternalStore } from "react";
 
-const KEY = "northstar.sidebar.collapsed";
+const KEY = "rpg.sidebar.collapsed";
 
 // Module-level subscriber set so every useSidebarCollapsed() instance re-reads
 // the snapshot when any of them toggles. localStorage is the source of truth.

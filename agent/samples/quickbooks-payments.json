@@ -1,0 +1,7 @@
+{
+  "_readme": "Sample QuickBooks payments for Module I. Matched to synced invoices by DocNumber (the platform's invoice number). amount \"full\" means the open balance.",
+  "payments": [
+    { "quickbooksPaymentId": "QBP-30017", "docNumber": "INV-1002", "amount": "full", "receivedAt": "{{DATETIME-2h}}", "method": "ACH" },
+    { "quickbooksPaymentId": "QBP-30018", "docNumber": "INV-1003", "amount": "full", "receivedAt": "{{DATETIME-1h}}", "method": "Check" }
+  ]
+}

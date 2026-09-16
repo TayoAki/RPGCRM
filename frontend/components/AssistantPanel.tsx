@@ -7,10 +7,9 @@ export function AssistantPanel() {
       defaultOpen
       width={420}
       labels={{
-        modalHeaderTitle: "Northstar Assistant",
-        welcomeMessageText:
-          "Hi — I can help you work your pipeline. Ask about deals, research an account, or draft a follow-up.",
-        chatInputPlaceholder: "Ask anything about your pipeline…",
+        modalHeaderTitle: "RPG Fuel Copilot",
+        chatInputPlaceholder: "Ask about prices, orders, loads, billing…",
+        chatDisclaimerText: "The copilot drafts and flags; pricing, approvals, and orders always need your confirmation.",
       }}
     />
   );

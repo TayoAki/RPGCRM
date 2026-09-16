@@ -1,0 +1,9 @@
+{
+  "_readme": "Sample market data feed for Module C. Values are daily changes ($/gal) applied to each index's last stored value when the feed is refreshed, so the series stays continuous.",
+  "changes": [
+    { "indexCode": "OPIS-DAL-ULSD", "change": 0.0175 },
+    { "indexCode": "OPIS-DAL-UNL87", "change": -0.0090 },
+    { "indexCode": "NYMEX-HO", "change": 0.0210 },
+    { "indexCode": "NYMEX-RBOB", "change": -0.0120 }
+  ]
+}

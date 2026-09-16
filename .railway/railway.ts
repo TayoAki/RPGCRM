@@ -24,7 +24,7 @@ import {
  * kept in Railway (`preserve()`), never in this file.
  */
 export default defineRailway(() => {
-  // SQLite store for the agent. Mounted at /data; NORTHSTAR_DB_PATH points into it.
+  // SQLite store for the agent. Mounted at /data; RPG_DB_PATH points into it.
   const agentData = volume("agent-data", { region: "sfo", sizeMB: 50000 });
 
   const agent = service("agent", {
@@ -32,14 +32,12 @@ export default defineRailway(() => {
       branch: "claude/quirky-cerf-cva5ud",
       rootDirectory: "agent",
     }),
-    healthcheck: "/crm",
+    healthcheck: "/ping",
     healthcheckTimeout: 120,
     volumeMounts: { "/data": agentData },
     env: {
       PORT: "8000",
-      NORTHSTAR_DB_PATH: "/data/northstar.db",
-      // Canned enrichment results until a Tavily key is configured.
-      MOCK_TAVILY: "1",
+      RPG_DB_PATH: "/data/rpg.db",
       // LLM provider: OpenRouter's OpenAI-compatible Chat Completions API.
       // Remove these three to use OpenAI directly (Responses API, gpt-5.4).
       OPENAI_BASE_URL: "https://openrouter.ai/api/v1",
@@ -47,7 +45,6 @@ export default defineRailway(() => {
       OPENAI_MODEL: "openai/gpt-5.4",
       // Secret, kept in Railway (agent service → Variables), never in this file.
       OPENAI_API_KEY: preserve(),
-      // TAVILY_API_KEY: preserve(),  // add when you drop MOCK_TAVILY
     },
   });
 

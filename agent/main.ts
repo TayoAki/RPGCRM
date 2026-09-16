@@ -1,134 +1,111 @@
+import express from "express";
+import cors from "cors";
 import { Agent } from "@strands-agents/sdk";
 import { OpenAIModel } from "@strands-agents/sdk/models/openai";
 import { StrandsAgent } from "@ag-ui/aws-strands";
-import { createStrandsApp } from "@ag-ui/aws-strands/server";
+import { addPing, addStrandsExpressEndpoint } from "@ag-ui/aws-strands/server";
 
-import { crm } from "./src/crm/store.js";
-import { registerCrmRoutes } from "./src/routes.js";
+import { ops } from "./src/domain/store.js";
+import { registerOpsRoutes } from "./src/routes.js";
+import { enterActor } from "./src/services/actor.js";
+import { quotePriceTool, explainPriceTool, priceBoardTool, enterRackPriceTool } from "./src/tools/pricing.js";
 import {
-  moveStageTool,
-  updateDealTool,
-  briefDealTool,
-  markWonTool,
-} from "./src/tools/deals.js";
-import { logActivityTool } from "./src/tools/activity.js";
-import { searchWebTool, enrichLeadTool } from "./src/tools/enrich.js";
-import { planPipelineTool } from "./src/tools/plan.js";
-import { recommendProductsTool } from "./src/tools/recommend.js";
-import { analyzeTeamTool, repPerformanceTool } from "./src/tools/team.js";
-import { generateWeeklyReportTool } from "./src/tools/report.js";
+  runEmailIntakeTool, listIntakeQueueTool, reviewIntakeTool, listOrdersTool, createOrderTool, updateOrderStatusTool, releaseCreditHoldTool,
+  listLoadsTool, createLoadTool, updateLoadStatusTool, recordDeliveryTool, setBillingStatusTool, pullBolFeedTool, matchBolTool, listBolsTool,
+} from "./src/tools/ops.js";
+import { listInvoicesTool, prepareInvoicesTool, approveInvoiceTool, rejectInvoiceTool, syncQuickBooksTool } from "./src/tools/billing.js";
+import { dailyBriefTool, marketUpdateTool, refreshMarketFeedTool, triageExceptionsTool, resolveExceptionTool, marginReportTool, customerSummaryTool } from "./src/tools/insights.js";
 
 const model = new OpenAIModel({
   apiKey: process.env.OPENAI_API_KEY ?? "",
   // Model id; override with OPENAI_MODEL (e.g. "openai/gpt-5.4" on OpenRouter).
   modelId: process.env.OPENAI_MODEL ?? "gpt-5.4",
-  // Deterministic capture: launch with OPENAI_API_MODE=chat so the agent uses
-  // the Chat Completions API, which aimock intercepts with chat-shaped fixtures.
-  // Pair with OPENAI_BASE_URL=<aimock>/v1 (the default OpenAI client reads it).
-  // Default behavior is unchanged — the Responses API.
+  // OPENAI_API_MODE=chat selects the Chat Completions API (OpenRouter, aimock);
+  // the default is the Responses API.
   ...(process.env.OPENAI_API_MODE === "chat" ? { api: "chat" as const } : {}),
 });
 
-const SYSTEM_PROMPT = `You are Northstar Copilot, the AI assistant inside Northstar — a CRM for an enterprise computer seller (laptops, workstations, servers, displays, accessories). You help reps and managers work the pipeline, quote hardware, research prospects, and analyze sales. Be concise and action-oriented. Prefer generative-UI cards over long prose; never dump raw tool JSON.
+const SYSTEM_PROMPT = `You are the RPG Fuel Copilot, the assistant inside Royalty Petroleums Group's fuel operations platform. RPG buys fuel at supplier terminals (racks) and delivers it to commercial customers by truck. You help staff work the order-to-cash lifecycle: order intake → pricing → dispatch/loads → supplier BOLs → delivery → billing → profitability. Be concise and action-oriented. Prefer the generative-UI cards your tools render over long prose; never dump raw tool JSON; never restate a card's numbers in prose.
 
-## Deal references
-Refer to deals by their human name but always pass the deal id (e.g. "d1") to tools.
+## Vocabulary
+Rack = supplier base price at a terminal. BOL = bill of lading issued at the terminal when the truck lifts product (gross and net gallons, supplier cost, taxes). Load = one truck trip for one or more orders. Billing workflow: BOL Received → Pricing Verified → Ready to Invoice → Invoiced → Paid. Order milestones: Order Received → Order Confirmed → Carrier Confirmed → Loading/In Transit → Delivered.
 
-## Navigating the workspace
-When the user asks to see/open/go to a page ("show me the pipeline", "open products", "take me to the team page", "go to reports"), call navigate_to({ page }) with one of: dashboard, pipeline, products, accounts, contacts, team, reports, activity. It switches the workspace to that page — confirm in a short phrase; don't describe the page contents.
+## Hard rules (money and approvals)
+- You never set a price, activate a pricing rule, approve an invoice, or create an order on your own. Those need a human confirmation step:
+  - New order from chat: gather customer, location, product, gallons, requested date (and PO/notes), then call confirm_order (frontend approval card). Only if it returns approved=true call create_order with the confirmed values.
+  - Email intake: run_email_intake / list_intake_queue show the queue. To approve one, call confirm_intake with its intakeId and parsed fields; only if approved=true call review_intake with decision "approve" and any edits returned. Reject with review_intake decision "reject" when the user says so.
+  - Invoices: prepare_invoices drafts them. To approve, call confirm_invoice with the invoiceId and summary; only if approved=true call approve_invoice. Then offer sync_quickbooks.
+- Never invent rack prices or index values. enter_rack_price only with a number the user typed.
+- Credit holds block dispatch. Explain the hold; release_credit_hold only when the user explicitly asks.
 
-## Daily plan / prioritization / "what should I focus on" / "at-risk" requests
-1. Acknowledge in ONE short sentence (e.g. "Let me take a look at your pipeline…").
-2. Call plan_pipeline EXACTLY ONCE. For daily-plan / "what should I focus on" / prioritization, use focus "all" (the default). For "which deals are at risk" / "what needs attention", call plan_pipeline({ focus: "at_risk" }). Do NOT call brief_deal for multiple deals to build a plan.
-3. The result is rendered as a priorities card in the UI. Do NOT restate, list, or summarize the card contents in prose — no re-listing deal names, amounts, risks, or next steps.
-4. End with EXACTLY ONE suggested next step phrased as a question that names a specific deal, account, or contact from the top priority (e.g. "Want me to research Acme, or draft a follow-up to Jordan at TechCorp?"). One question only.
+## Tool routing
+- "What's the price for X" / quotes → quote_price (pass names as the user said them; include gallons when given). Explain a past price → explain_price.
+- Price sheet / today's prices → price_board.
+- "How are we doing", morning brief, status → daily_brief (once). End with ONE suggested next step as a question.
+- Market, indexes, forecast → market_update; "refresh the feed" → refresh_market_feed.
+- What needs attention / exceptions / problems → triage_exceptions (once). Resolve with resolve_exception after the user confirms what was done.
+- Orders → list_orders / update_order_status. Loads → list_loads / create_load / update_load_status / record_delivery / set_billing_status.
+- BOLs → pull_bol_feed (ingest from suppliers), list_bols, match_bol for unmatched ones.
+- Billing → list_invoices / prepare_invoices / confirm_invoice → approve_invoice / reject_invoice / sync_quickbooks.
+- Profit, margin, profitability → margin_report. "Tell me about <customer>" → customer_summary.
+- Navigation ("show me the loads board", "open billing") → navigate_to with one of: dashboard, orders, loads, pricing, market, bols, billing, exceptions, customers, network, reports. Confirm in a short phrase. To open a specific order or load, focus_order / focus_load.
 
-## Single-deal briefing
-When the user asks about ONE specific deal, call brief_deal for that deal.
-
-## Research / enrichment
-When the user asks to research or enrich an account, call enrich_lead.
-
-## Product recommendations / quotes
-When the user wants to quote hardware or asks what to recommend/sell for an account ("recommend laptops for X", "quote a fleet for Y"), call recommend_products({ accountId or name, seats?, useCase? }). The result renders as a quote card — don't restate the line items in prose.
-
-## Team performance / analytics
-For team-wide questions ("how is the team doing", "team performance", "sales analytics this quarter"), call analyze_team. The result opens on the Team Reports page (Reports → Team Reports) in the workspace; the chat shows a short handoff. Briefly confirm — don't restate the numbers.
-
-## Individual rep performance
-When the user asks about ONE salesperson ("how is Maya doing", "show me Diego's numbers"), call rep_performance({ name }). Renders as a rep-stats card.
-
-## Weekly report
-When the user asks to generate/create a weekly (sales) report, call generate_weekly_report. It saves the report and opens it on the Weekly Reports page (Reports → Weekly Reports) in the workspace; the chat shows a short handoff. Briefly confirm — don't restate the figures.
-
-## Stage moves and deal edits
-After moving stages or editing deals, briefly confirm what changed (one sentence).
-
-## Follow-up emails
-To send a follow-up: draft the email, then call confirm_followup({ dealId, to, subject, body }).
-If the user approves, call log_activity({ dealId, type: "email", body }) to record it.`;
+## Style
+Use the deal ids/order ids/load ids from the tools when calling other tools; refer to things by their human numbers (ORD-1008, LD-506, INV-1004) when talking. After a mutation, confirm in one sentence what changed. If a tool errors (e.g. credit hold, missing rule), explain the reason and the fix in one or two sentences.`;
 
 const agent = new Agent({
   model,
   systemPrompt: SYSTEM_PROMPT,
   tools: [
-    moveStageTool,
-    updateDealTool,
-    briefDealTool,
-    markWonTool,
-    logActivityTool,
-    searchWebTool,
-    enrichLeadTool,
-    planPipelineTool,
-    recommendProductsTool,
-    analyzeTeamTool,
-    repPerformanceTool,
-    generateWeeklyReportTool,
+    quotePriceTool, explainPriceTool, priceBoardTool, enterRackPriceTool,
+    runEmailIntakeTool, listIntakeQueueTool, reviewIntakeTool, listOrdersTool, createOrderTool, updateOrderStatusTool, releaseCreditHoldTool,
+    listLoadsTool, createLoadTool, updateLoadStatusTool, recordDeliveryTool, setBillingStatusTool, pullBolFeedTool, matchBolTool, listBolsTool,
+    listInvoicesTool, prepareInvoicesTool, approveInvoiceTool, rejectInvoiceTool, syncQuickBooksTool,
+    dailyBriefTool, marketUpdateTool, refreshMarketFeedTool, triageExceptionsTool, resolveExceptionTool, marginReportTool, customerSummaryTool,
   ],
 });
 
 await agent.initialize();
 
-// After any state-mutating tool runs, push the full CRM snapshot to the UI
-// as a STATE_SNAPSHOT. brief_deal/search_web are read-only → no state push.
-const pushState = {
-  stateFromResult: () =>
-    crm.getStateSnapshot() as unknown as Record<string, unknown>,
-};
+// After any state-mutating tool, push the trimmed ops snapshot to the UI as a STATE_SNAPSHOT.
+const pushState = { stateFromResult: () => ops.uiSnapshot() as unknown as Record<string, unknown> };
+const MUTATING = [
+  "enter_rack_price", "run_email_intake", "review_intake", "create_order", "update_order_status", "release_credit_hold",
+  "create_load", "update_load_status", "record_delivery", "set_billing_status", "pull_bol_feed", "match_bol",
+  "prepare_invoices", "approve_invoice", "reject_invoice", "sync_quickbooks", "refresh_market_feed", "resolve_exception", "quote_price",
+];
 
 const aguiAgent = new StrandsAgent({
   agent,
   name: "strands_agent",
   config: {
-    toolBehaviors: {
-      move_stage: pushState,
-      update_deal: pushState,
-      mark_won: pushState,
-      log_activity: pushState,
-      enrich_lead: pushState,
-      // generate_weekly_report persists a new Report → push so the Reports page updates live.
-      generate_weekly_report: pushState,
-      // recommend_products / analyze_team / rep_performance are read-only → no push.
-    },
-    // Inject a compact pipeline summary into every prompt so the agent always
-    // sees current state (including UI-initiated edits).
-    stateContextBuilder: (_input, prompt) => {
-      const { deals } = crm.getStateSnapshot();
-      const lines = deals
-        .map(
-          (d) =>
-            `- ${d.id} "${d.name}" — ${d.stage}, $${d.amount}, ${d.probability}%`,
-        )
-        .join("\n");
-      return `${prompt}\n\n[Current pipeline]\n${lines}`;
+    toolBehaviors: Object.fromEntries(MUTATING.map((n) => [n, pushState])),
+    // A compact operational summary on every prompt, plus who is acting.
+    stateContextBuilder: (input, prompt) => {
+      const props = (input as { forwardedProps?: { actorId?: string } }).forwardedProps;
+      enterActor(props?.actorId);
+      const s = ops.snapshot();
+      const actor = s.staff.find((u) => u.id === (props?.actorId ?? "u-dana"));
+      const open = s.exceptions.filter((e) => e.status !== "resolved");
+      const lines = [
+        `Today: ${new Date().toISOString().slice(0, 10)}. Acting user: ${actor ? `${actor.name} (${actor.role}, id ${actor.id})` : "unknown"}.`,
+        `Open orders: ${s.orders.filter((o) => !["delivered", "cancelled"].includes(o.status)).length}; intake queue: ${s.emailIntakes.filter((e) => e.reviewStatus === "pending").length}; loads awaiting billing: ${s.loads.filter((l) => l.billingStatus && !["invoiced", "paid"].includes(l.billingStatus)).length}; invoices pending approval: ${s.invoices.filter((i) => i.status === "pending_approval").length}; open exceptions: ${open.length} (${open.filter((e) => e.severity === "critical").length} critical).`,
+        `Customers: ${s.customers.map((c) => `${c.name} [${c.code}]`).join(", ")}.`,
+        `Products: ${s.products.map((p) => `${p.name} [${p.code}]`).join(", ")}. Terminals: ${s.terminals.map((t) => `${t.name} [${t.code}]`).join(", ")}. Carriers: ${s.carriers.map((c) => `${c.name} [${c.code}]`).join(", ")}.`,
+      ];
+      return `${prompt}\n\n[Operations context]\n${lines.join("\n")}`;
     },
   },
 });
 
-const app = await createStrandsApp(aguiAgent, { path: "/" });
-registerCrmRoutes(app);
+const app = express();
+app.use(cors({ origin: true, credentials: true }));
+app.use(express.json({ limit: "50mb" }));
+addPing(app, "/ping");
+addStrandsExpressEndpoint(app, aguiAgent, { path: "/" });
+registerOpsRoutes(app);
 
 const PORT = Number(process.env.PORT) || 8000;
 app.listen(PORT, () => {
-  console.log(`Northstar agent listening on http://localhost:${PORT}`);
+  console.log(`RPG Fuel agent listening on http://localhost:${PORT}`);
 });
