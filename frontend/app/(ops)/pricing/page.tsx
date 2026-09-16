@@ -20,6 +20,14 @@ export default function PricingPage() {
   const [editRule, setEditRule] = useState<PricingRule | null>(null);
   const [q, setQ] = useState({ customerId: "", productId: "", terminalId: "", deliveryLocationId: "", gallons: "" });
   const [quote, setQuote] = useState<{ ok: boolean; price?: CustomerPrice; rule?: PricingRule; message?: string } | null>(null);
+  const [importNote, setImportNote] = useState<string | null>(null);
+  // Module A: today's supplier rack postings come from the feed file (a DTN or supplier price feed in production).
+  const importRacks = async () => {
+    try {
+      const r = await act<{ run: { summary: string }; skipped: { reason: string }[] }>("rack-prices/import");
+      setImportNote(r.run.summary);
+    } catch { /* toast shows it */ }
+  };
   // The price board is computed server-side (rules × customers × products); reload it whenever the snapshot changes.
   useEffect(() => {
     act<BoardRow[]>("price-board", undefined, "GET").then(setBoard).catch(() => undefined);
@@ -42,7 +50,9 @@ export default function PricingPage() {
   };
   return (
     <Page>
-      <PageHeader title="Pricing" description="Rack prices in, customer prices out. Rules: most specific wins (location › terminal › customer), then priority." actions={<><Button size="sm" variant="outline" onClick={() => setRackOpen(true)}>Enter rack price</Button><Button size="sm" onClick={() => { setEditRule(null); setRuleOpen(true); }}>New rule</Button></>} />
+      <PageHeader title="Pricing" description="Rack prices in, customer prices out. Rules: most specific wins (location › terminal › customer), then priority." actions={<><Button size="sm" variant="outline" disabled={!!busy} onClick={importRacks}>Import rack feed</Button><Button size="sm" variant="outline" onClick={() => setRackOpen(true)}>Enter rack price</Button><Button size="sm" onClick={() => { setEditRule(null); setRuleOpen(true); }}>New rule</Button></>}>
+        {importNote ? <p className="text-xs text-brand-blue">{importNote}</p> : null}
+      </PageHeader>
       <Tabs defaultValue="board">
         <TabsList>
           <TabsTrigger value="board">Price board</TabsTrigger>

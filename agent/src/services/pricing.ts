@@ -1,5 +1,6 @@
 import type { OpsStore } from "../domain/store.js";
-import type { Customer, CustomerPrice, PricingRule, Product, RackPrice, Terminal } from "../domain/types.js";
+import type { Customer, CustomerPrice, IntegrationRun, PricingRule, Product, RackPrice, Supplier, Terminal } from "../domain/types.js";
+import { loadSample } from "../samples/loader.js";
 import { evaluatePrice } from "../pricing/engine.js";
 import type { PriceRequest, PriceResult } from "../pricing/engine.js";
 import { pricingContext, recomputeExceptions, SYSTEM_ACTOR } from "./context.js";
@@ -44,6 +45,95 @@ export function enterRackPrice(store: OpsStore, input: RackPriceInput, actorId: 
   store.audit(actorId, "rackPrice.entered", "rackPrice", rp.id, `${input.productId} @ ${input.terminalId} = ${rp.pricePerGallon}`);
   recomputeExceptions(store, now);
   return rp;
+}
+
+/** One line of a supplier rack feed (see agent/samples/rack-feed.json). */
+export interface RackFeedPosting {
+  postingRef: string;
+  supplierCode: string;
+  terminalCode: string;
+  productCode: string;
+  effectiveAt?: string;
+  /** Absolute posting, $/gal. */
+  price?: number;
+  /** Or a move against the last stored rack for the same supplier, terminal, and product. */
+  change?: number;
+}
+
+export interface RackFeedResult {
+  run: IntegrationRun;
+  imported: (RackPrice & { supplierCode: string; terminalCode: string; productCode: string; previous: number | null; change: number | null })[];
+  skipped: { postingRef: string; reason: string }[];
+}
+
+/**
+ * Module A, "daily base fuel price import": bring in supplier rack postings
+ * from the rack feed instead of typing them. Postings carry a reference so a
+ * feed can be re-imported safely; moves apply to the latest stored rack.
+ */
+export function importRackFeed(store: OpsStore, actorId: string, now: Date = new Date(), postings?: RackFeedPosting[]): RackFeedResult {
+  const startedAt = now.toISOString();
+  const today = now.toISOString().slice(0, 10);
+  const feed = postings ?? loadSample<{ postings: RackFeedPosting[] }>("rack-feed.json", now).postings;
+  const suppliers = store.all<Supplier>("suppliers");
+  const terminals = store.all<Terminal>("terminals");
+  const products = store.all<Product>("products");
+  const seen = new Set(store.all<RackPrice>("rackPrices").map((r) => r.sourceRef).filter((x): x is string => !!x));
+  const imported: RackFeedResult["imported"] = [];
+  const skipped: RackFeedResult["skipped"] = [];
+  for (const posting of feed) {
+    const ref = posting.postingRef;
+    if (!ref) { skipped.push({ postingRef: "(none)", reason: "posting has no postingRef" }); continue; }
+    if (seen.has(ref)) { skipped.push({ postingRef: ref, reason: "already imported" }); continue; }
+    const supplier = suppliers.find((x) => x.code.toLowerCase() === posting.supplierCode.toLowerCase());
+    const terminal = terminals.find((x) => x.code.toLowerCase() === posting.terminalCode.toLowerCase());
+    const product = products.find((x) => x.code.toLowerCase() === posting.productCode.toLowerCase());
+    if (!supplier) { skipped.push({ postingRef: ref, reason: `unknown supplier ${posting.supplierCode}` }); continue; }
+    if (!terminal) { skipped.push({ postingRef: ref, reason: `unknown terminal ${posting.terminalCode}` }); continue; }
+    if (!product) { skipped.push({ postingRef: ref, reason: `unknown product ${posting.productCode}` }); continue; }
+    if (!terminal.supplierIds.includes(supplier.id)) { skipped.push({ postingRef: ref, reason: `${supplier.code} does not post at ${terminal.code}` }); continue; }
+    const previous = store
+      .all<RackPrice>("rackPrices")
+      .filter((r) => r.supplierId === supplier.id && r.terminalId === terminal.id && r.productId === product.id)
+      .sort((a, b) => b.effectiveAt.localeCompare(a.effectiveAt))[0];
+    let value: number;
+    if (typeof posting.price === "number") value = posting.price;
+    else if (typeof posting.change === "number") {
+      if (!previous) { skipped.push({ postingRef: ref, reason: `no prior rack for ${supplier.code} ${product.code} at ${terminal.code} to apply a change to` }); continue; }
+      value = previous.pricePerGallon + posting.change;
+    } else { skipped.push({ postingRef: ref, reason: "posting has neither price nor change" }); continue; }
+    if (!(value > 0)) { skipped.push({ postingRef: ref, reason: "price must be positive" }); continue; }
+    const rp: RackPrice = {
+      id: store.nextId("rackPrices", "rp-"),
+      terminalId: terminal.id,
+      supplierId: supplier.id,
+      productId: product.id,
+      effectiveAt: posting.effectiveAt ?? now.toISOString(),
+      pricePerGallon: Math.round(value * 10000) / 10000,
+      source: "feed",
+      enteredBy: actorId,
+      sourceRef: ref,
+    };
+    store.save("rackPrices", rp);
+    seen.add(ref);
+    imported.push({ ...rp, supplierCode: supplier.code, terminalCode: terminal.code, productCode: product.code, previous: previous?.pricePerGallon ?? null, change: previous ? Math.round((rp.pricePerGallon - previous.pricePerGallon) * 10000) / 10000 : null });
+  }
+  const run: IntegrationRun = {
+    id: store.nextId("integrationRuns", "run-"),
+    kind: "rack_feed",
+    startedAt,
+    finishedAt: new Date().toISOString(),
+    status: "success",
+    recordsIn: feed.length,
+    recordsOut: imported.length,
+    summary: imported.length
+      ? `${imported.length} rack posting(s) imported for ${today}${skipped.length ? `, ${skipped.length} skipped` : ""}`
+      : `Rack postings already current for ${today}${skipped.length ? ` (${skipped.length} skipped)` : ""}`,
+  };
+  store.save("integrationRuns", run);
+  store.audit(actorId, "rackPrice.imported", "integrationRun", run.id, run.summary);
+  if (imported.length) recomputeExceptions(store, now);
+  return { run, imported, skipped };
 }
 
 export type PricingRuleInput = Omit<PricingRule, "id"> & { id?: string };

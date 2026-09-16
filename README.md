@@ -32,7 +32,7 @@ model in [RPG_DATA_MODEL.md](./RPG_DATA_MODEL.md) and the build plan in
 
 | Plan module                     | Where                             | What works                                                                                                                                                                  |
 | ------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A. Pricing                      | `/pricing`                        | Rack price entry, pricing rules (rack / index / fixed basis, differential, freight, fees, contract vs spot, effective dates), auto-calculated price board, quotes with a line-by-line explanation, Texas fuel taxes by product category |
+| A. Pricing                      | `/pricing`                        | Daily rack (base) price import from a supplier feed file plus manual entry, pricing rules (rack / index / fixed basis, differential, freight, fees, contract vs spot, effective dates), auto-calculated price board, quotes with a line-by-line explanation, Texas fuel taxes by product category |
 | B. Margin & profit tracking     | `/reports`, load drawer           | Expected vs actual gross profit per load and per customer, totals by day, week, and month, profit per gallon, low-margin and cost-variance flags                             |
 | C. Fuel market tracker          | `/market`                         | Index history (OPIS, NYMEX), sample feed refresh, next-day direction forecast with a backtested hit rate                                                                     |
 | D. Billing & invoicing          | `/billing`                        | Billing board (BOL Received → Pricing Verified → Ready to Invoice → Invoiced → Paid), invoice builder (net or gross gallons, taxes, freight, fees), management approval gate, QuickBooks sync and payment import (mock) |
@@ -91,6 +91,7 @@ example, only management can approve an invoice).
 | -------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------- |
 | Order inbox (email)  | `agent/samples/emails.json` + `agent/samples/attachments/` (CSV, XLSX, PDF) | "Run email intake" (Orders page, copilot) or `POST /ops/intake/run` | `agent/src/services/orders.ts` → `runEmailIntake`; attachment bytes go through `agent/src/intake/attachments.ts` |
 | Supplier BOL feed    | `agent/samples/bol-feed.json`                                              | "Pull BOL feed" (Loads / BOLs pages, copilot) or `POST /ops/bols/pull` | `agent/src/services/loads.ts` → `pullBolFeed`    |
+| Supplier rack feed   | `agent/samples/rack-feed.json`                                             | "Import rack feed" (Pricing page, dashboard, copilot) or `POST /ops/rack-prices/import` | `agent/src/services/pricing.ts` → `importRackFeed` |
 | Market index feed    | `agent/samples/index-feed.json`                                            | "Refresh feed" (Market page, copilot) or `POST /ops/market/refresh` | `agent/src/services/market.ts` → `refreshIndexFeed` |
 | QuickBooks Online    | `agent/samples/quickbooks-invoice-template.json`, `quickbooks-payments.json` | "Sync QuickBooks" (Billing page, copilot) or `POST /ops/quickbooks/sync-invoices` and `sync-payments` | `agent/src/integrations/quickbooks/mock.ts` |
 
@@ -178,9 +179,11 @@ Prefer two terminals? Run `npm --prefix agent run dev` and `npm --prefix fronten
    attached PDF purchase order (an attached photo is recorded as unsupported).
    Open the queue, fix the one with no matching customer, approve the rest. Each
    approval becomes an order.
-3. **Pricing**: ask the copilot *"What's today's price for Lone Star Aggregates on
-   ULSD, 7,500 gallons?"* and compare with the price board. Add a rack price or a
-   rule and watch the board recalculate.
+3. **Pricing**: press **Import rack feed** to bring in today's supplier postings
+   (the feed is idempotent, so pressing it twice imports nothing new), then ask
+   the copilot *"What's today's price for Lone Star Aggregates on ULSD, 7,500
+   gallons?"* and compare with the price board. Add a rule and watch the board
+   recalculate.
 4. **Dispatch**: on Loads create a load for a confirmed order, then drag it
    Planned → Dispatched → Loading → In Transit. Record the delivery ticket from the
    load drawer.

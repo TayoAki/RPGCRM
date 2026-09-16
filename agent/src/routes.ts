@@ -3,7 +3,7 @@ import type { Express, Request, Response } from "express";
 import { ops } from "./domain/store.js";
 import type { Customer, Invoice, Load, Order, OrderStatus, LoadStatus, BillingStatus, PricingRule, RollupPeriod } from "./domain/types.js";
 import { customerProfitability, dailySeries, dashboardMetrics, DEFAULT_ROLLUP_COUNT, periodRollups, rollupTotals } from "./analytics.js";
-import { enterRackPrice, priceBoard, quotePrice, upsertPricingRule } from "./services/pricing.js";
+import { enterRackPrice, importRackFeed, priceBoard, quotePrice, upsertPricingRule } from "./services/pricing.js";
 import { marketSummary, refreshIndexFeed, runForecast } from "./services/market.js";
 import { createOrder, releaseCreditHold, reviewIntake, runEmailIntake, setOrderStatus } from "./services/orders.js";
 import { createLoadForOrder, ingestBol, matchBolToLoad, pullBolFeed, recordDelivery, setBillingStatus, setLoadStatus } from "./services/loads.js";
@@ -65,6 +65,7 @@ export function registerOpsRoutes(app: Express): void {
     return r.ok ? { ok: true, price: r.snapshot, rule: r.rule } : { ok: false, reason: r.reason, message: r.message };
   }));
   app.post("/ops/rack-prices", json, wrap((req) => enterRackPrice(ops, req.body, actorOf(req))));
+  app.post("/ops/rack-prices/import", json, wrap((req) => importRackFeed(ops, actorOf(req))));
   app.post("/ops/pricing-rules", json, wrap((req) => upsertPricingRule(ops, req.body as PricingRule, actorOf(req))));
 
   // Module B: totals by day / week / month for the Reports page.

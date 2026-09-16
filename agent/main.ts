@@ -8,7 +8,7 @@ import { addPing, addStrandsExpressEndpoint } from "@ag-ui/aws-strands/server";
 import { ops } from "./src/domain/store.js";
 import { registerOpsRoutes } from "./src/routes.js";
 import { enterActor } from "./src/services/actor.js";
-import { quotePriceTool, explainPriceTool, priceBoardTool, enterRackPriceTool } from "./src/tools/pricing.js";
+import { quotePriceTool, explainPriceTool, priceBoardTool, enterRackPriceTool, importRackPricesTool } from "./src/tools/pricing.js";
 import {
   runEmailIntakeTool, listIntakeQueueTool, reviewIntakeTool, listOrdersTool, createOrderTool, updateOrderStatusTool, releaseCreditHoldTool,
   listLoadsTool, createLoadTool, updateLoadStatusTool, recordDeliveryTool, setBillingStatusTool, pullBolFeedTool, matchBolTool, listBolsTool,
@@ -35,7 +35,7 @@ Rack = supplier base price at a terminal. BOL = bill of lading issued at the ter
   - New order from chat: gather customer, location, product, gallons, requested date (and PO/notes), then call confirm_order (frontend approval card). Only if it returns approved=true call create_order with the confirmed values.
   - Email intake: run_email_intake / list_intake_queue show the queue. To approve one, call confirm_intake with its intakeId and parsed fields; only if approved=true call review_intake with decision "approve" and any edits returned. Reject with review_intake decision "reject" when the user says so.
   - Invoices: prepare_invoices drafts them. To approve, call confirm_invoice with the invoiceId and summary; only if approved=true call approve_invoice. Then offer sync_quickbooks.
-- Never invent rack prices or index values. enter_rack_price only with a number the user typed.
+- Never invent rack prices or index values. enter_rack_price only with a number the user typed; "import the racks" / "refresh rack prices" → import_rack_prices (reads the supplier feed).
 - Credit holds block dispatch. Explain the hold; release_credit_hold only when the user explicitly asks.
 
 ## Tool routing
@@ -57,7 +57,7 @@ const agent = new Agent({
   model,
   systemPrompt: SYSTEM_PROMPT,
   tools: [
-    quotePriceTool, explainPriceTool, priceBoardTool, enterRackPriceTool,
+    quotePriceTool, explainPriceTool, priceBoardTool, enterRackPriceTool, importRackPricesTool,
     runEmailIntakeTool, listIntakeQueueTool, reviewIntakeTool, listOrdersTool, createOrderTool, updateOrderStatusTool, releaseCreditHoldTool,
     listLoadsTool, createLoadTool, updateLoadStatusTool, recordDeliveryTool, setBillingStatusTool, pullBolFeedTool, matchBolTool, listBolsTool,
     listInvoicesTool, prepareInvoicesTool, approveInvoiceTool, rejectInvoiceTool, syncQuickBooksTool,
@@ -70,7 +70,7 @@ await agent.initialize();
 // After any state-mutating tool, push the trimmed ops snapshot to the UI as a STATE_SNAPSHOT.
 const pushState = { stateFromResult: () => ops.uiSnapshot() as unknown as Record<string, unknown> };
 const MUTATING = [
-  "enter_rack_price", "run_email_intake", "review_intake", "create_order", "update_order_status", "release_credit_hold",
+  "enter_rack_price", "import_rack_prices", "run_email_intake", "review_intake", "create_order", "update_order_status", "release_credit_hold",
   "create_load", "update_load_status", "record_delivery", "set_billing_status", "pull_bol_feed", "match_bol",
   "prepare_invoices", "approve_invoice", "reject_invoice", "sync_quickbooks", "refresh_market_feed", "resolve_exception", "quote_price",
 ];

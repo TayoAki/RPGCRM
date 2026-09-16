@@ -3,7 +3,7 @@ import { tool } from "@strands-agents/sdk";
 import type { JSONValue } from "@strands-agents/sdk";
 import { ops } from "../domain/store.js";
 import type { CustomerPrice } from "../domain/types.js";
-import { enterRackPrice, priceBoard, quotePrice } from "../services/pricing.js";
+import { enterRackPrice, importRackFeed, priceBoard, quotePrice } from "../services/pricing.js";
 import { currentActor } from "../services/actor.js";
 import { resolveCustomer, resolveLocation, resolveProduct, resolveTerminal } from "./resolve.js";
 
@@ -89,5 +89,20 @@ export const enterRackPriceTool = tool({
     const s = ops.all<{ id: string; code: string; name: string }>("suppliers").find((x) => x.code.toLowerCase() === supplier.toLowerCase() || x.name.toLowerCase().includes(supplier.toLowerCase()));
     if (!s) throw new Error(`Supplier not found: ${supplier}`);
     return enterRackPrice(ops, { terminalId: t.id, supplierId: s.id, productId: p.id, pricePerGallon }, currentActor()) as unknown as JSONValue;
+  },
+});
+
+/** Rendered as a result card. */
+export const importRackPricesTool = tool({
+  name: "import_rack_prices",
+  description: "Import today's supplier rack (base price) postings from the rack feed (a sample file in this MVP; a DTN or supplier price feed in production). Use for 'import racks', 'refresh rack prices', 'pull today's rack postings'. Safe to repeat: postings already imported are skipped.",
+  inputSchema: z.object({}),
+  callback: () => {
+    const r = importRackFeed(ops, currentActor());
+    return {
+      summary: r.run.summary,
+      imported: r.imported.map((x) => ({ supplier: x.supplierCode, terminal: x.terminalCode, product: x.productCode, pricePerGallon: x.pricePerGallon, previous: x.previous, change: x.change })),
+      skipped: r.skipped,
+    } as unknown as JSONValue;
   },
 });

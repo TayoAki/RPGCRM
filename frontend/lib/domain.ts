@@ -158,6 +158,8 @@ export interface RackPrice {
   pricePerGallon: number;
   source: "manual" | "import" | "feed";
   enteredBy?: string;
+  /** Feed posting reference; the same reference is never imported twice. */
+  sourceRef?: string;
 }
 
 export type BasisType = "rack" | "index" | "fixed";
@@ -603,6 +605,7 @@ export type IntegrationKind =
   | "email_intake"
   | "bol_feed"
   | "index_feed"
+  | "rack_feed"
   | "quickbooks_invoices"
   | "quickbooks_payments"
   | "forecast";

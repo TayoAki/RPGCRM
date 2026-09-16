@@ -1,0 +1,205 @@
+{
+  "_readme": "Sample supplier rack (base price) feed for Module A: the shape a DTN or supplier price-notice feed delivers. Each posting is keyed by supplier, terminal, and product. `change` is applied to the last stored rack for that key so the series stays continuous; `price` records an absolute posting instead. `postingRef` makes a posting idempotent: importing the same feed twice records nothing new. Tokens like {{DATE}} and {{DATETIME}} are resolved when the feed is loaded.",
+  "postings": [
+    {
+      "postingRef": "MOT-DAL-ULSD-{{DATE}}",
+      "supplierCode": "MOT",
+      "terminalCode": "DAL",
+      "productCode": "ULSD",
+      "effectiveAt": "{{DATETIME}}",
+      "change": -0.0125
+    },
+    {
+      "postingRef": "MOT-DAL-DYED-{{DATE}}",
+      "supplierCode": "MOT",
+      "terminalCode": "DAL",
+      "productCode": "DYED",
+      "effectiveAt": "{{DATETIME}}",
+      "change": -0.0125
+    },
+    {
+      "postingRef": "MOT-DAL-UNL87-{{DATE}}",
+      "supplierCode": "MOT",
+      "terminalCode": "DAL",
+      "productCode": "UNL87",
+      "effectiveAt": "{{DATETIME}}",
+      "change": 0.008
+    },
+    {
+      "postingRef": "MOT-DAL-PRM93-{{DATE}}",
+      "supplierCode": "MOT",
+      "terminalCode": "DAL",
+      "productCode": "PRM93",
+      "effectiveAt": "{{DATETIME}}",
+      "change": 0.008
+    },
+    {
+      "postingRef": "MPC-DAL-ULSD-{{DATE}}",
+      "supplierCode": "MPC",
+      "terminalCode": "DAL",
+      "productCode": "ULSD",
+      "effectiveAt": "{{DATETIME}}",
+      "change": -0.0115
+    },
+    {
+      "postingRef": "MPC-DAL-DYED-{{DATE}}",
+      "supplierCode": "MPC",
+      "terminalCode": "DAL",
+      "productCode": "DYED",
+      "effectiveAt": "{{DATETIME}}",
+      "change": -0.0115
+    },
+    {
+      "postingRef": "MPC-DAL-UNL87-{{DATE}}",
+      "supplierCode": "MPC",
+      "terminalCode": "DAL",
+      "productCode": "UNL87",
+      "effectiveAt": "{{DATETIME}}",
+      "change": 0.009
+    },
+    {
+      "postingRef": "MPC-DAL-PRM93-{{DATE}}",
+      "supplierCode": "MPC",
+      "terminalCode": "DAL",
+      "productCode": "PRM93",
+      "effectiveAt": "{{DATETIME}}",
+      "change": 0.009
+    },
+    {
+      "postingRef": "MPC-FTW-ULSD-{{DATE}}",
+      "supplierCode": "MPC",
+      "terminalCode": "FTW",
+      "productCode": "ULSD",
+      "effectiveAt": "{{DATETIME}}",
+      "change": -0.0115
+    },
+    {
+      "postingRef": "MPC-FTW-DYED-{{DATE}}",
+      "supplierCode": "MPC",
+      "terminalCode": "FTW",
+      "productCode": "DYED",
+      "effectiveAt": "{{DATETIME}}",
+      "change": -0.0115
+    },
+    {
+      "postingRef": "MPC-FTW-UNL87-{{DATE}}",
+      "supplierCode": "MPC",
+      "terminalCode": "FTW",
+      "productCode": "UNL87",
+      "effectiveAt": "{{DATETIME}}",
+      "change": 0.009
+    },
+    {
+      "postingRef": "MPC-FTW-PRM93-{{DATE}}",
+      "supplierCode": "MPC",
+      "terminalCode": "FTW",
+      "productCode": "PRM93",
+      "effectiveAt": "{{DATETIME}}",
+      "change": 0.009
+    },
+    {
+      "postingRef": "VLO-FTW-ULSD-{{DATE}}",
+      "supplierCode": "VLO",
+      "terminalCode": "FTW",
+      "productCode": "ULSD",
+      "effectiveAt": "{{DATETIME}}",
+      "change": -0.014
+    },
+    {
+      "postingRef": "VLO-FTW-DYED-{{DATE}}",
+      "supplierCode": "VLO",
+      "terminalCode": "FTW",
+      "productCode": "DYED",
+      "effectiveAt": "{{DATETIME}}",
+      "change": -0.014
+    },
+    {
+      "postingRef": "VLO-FTW-UNL87-{{DATE}}",
+      "supplierCode": "VLO",
+      "terminalCode": "FTW",
+      "productCode": "UNL87",
+      "effectiveAt": "{{DATETIME}}",
+      "change": 0.0065
+    },
+    {
+      "postingRef": "VLO-FTW-PRM93-{{DATE}}",
+      "supplierCode": "VLO",
+      "terminalCode": "FTW",
+      "productCode": "PRM93",
+      "effectiveAt": "{{DATETIME}}",
+      "change": 0.0065
+    },
+    {
+      "postingRef": "VLO-HOU-ULSD-{{DATE}}",
+      "supplierCode": "VLO",
+      "terminalCode": "HOU",
+      "productCode": "ULSD",
+      "effectiveAt": "{{DATETIME}}",
+      "change": -0.014
+    },
+    {
+      "postingRef": "VLO-HOU-DYED-{{DATE}}",
+      "supplierCode": "VLO",
+      "terminalCode": "HOU",
+      "productCode": "DYED",
+      "effectiveAt": "{{DATETIME}}",
+      "change": -0.014
+    },
+    {
+      "postingRef": "VLO-HOU-UNL87-{{DATE}}",
+      "supplierCode": "VLO",
+      "terminalCode": "HOU",
+      "productCode": "UNL87",
+      "effectiveAt": "{{DATETIME}}",
+      "change": 0.0065
+    },
+    {
+      "postingRef": "VLO-HOU-PRM93-{{DATE}}",
+      "supplierCode": "VLO",
+      "terminalCode": "HOU",
+      "productCode": "PRM93",
+      "effectiveAt": "{{DATETIME}}",
+      "change": 0.0065
+    },
+    {
+      "postingRef": "MOT-HOU-ULSD-{{DATE}}",
+      "supplierCode": "MOT",
+      "terminalCode": "HOU",
+      "productCode": "ULSD",
+      "effectiveAt": "{{DATETIME}}",
+      "change": -0.0125
+    },
+    {
+      "postingRef": "MOT-HOU-DYED-{{DATE}}",
+      "supplierCode": "MOT",
+      "terminalCode": "HOU",
+      "productCode": "DYED",
+      "effectiveAt": "{{DATETIME}}",
+      "change": -0.0125
+    },
+    {
+      "postingRef": "MOT-HOU-UNL87-{{DATE}}",
+      "supplierCode": "MOT",
+      "terminalCode": "HOU",
+      "productCode": "UNL87",
+      "effectiveAt": "{{DATETIME}}",
+      "change": 0.008
+    },
+    {
+      "postingRef": "MOT-HOU-PRM93-{{DATE}}",
+      "supplierCode": "MOT",
+      "terminalCode": "HOU",
+      "productCode": "PRM93",
+      "effectiveAt": "{{DATETIME}}",
+      "change": 0.008
+    },
+    {
+      "postingRef": "MOT-DAL-DEF-{{DATE}}",
+      "supplierCode": "MOT",
+      "terminalCode": "DAL",
+      "productCode": "DEF",
+      "effectiveAt": "{{DATETIME}}",
+      "price": 2.95
+    }
+  ]
+}

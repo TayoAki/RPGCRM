@@ -38,7 +38,7 @@ export default function DashboardPage() {
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version]);
-  const runs = ["email_intake", "bol_feed", "index_feed", "quickbooks_invoices", "quickbooks_payments", "forecast"].map((kind) => ({
+  const runs = ["email_intake", "bol_feed", "rack_feed", "index_feed", "quickbooks_invoices", "quickbooks_payments", "forecast"].map((kind) => ({
     kind,
     last: [...state.integrationRuns].reverse().find((r) => r.kind === kind),
   }));
@@ -116,7 +116,7 @@ export default function DashboardPage() {
         </SectionCard>
       </div>
       <SectionCard title="Integrations (sample feeds)" action={<span className="text-xs text-muted-foreground">Each button runs the integration against its sample file</span>}>
-        <div className="grid gap-3 @md:grid-cols-2 @2xl:grid-cols-3 @5xl:grid-cols-6">
+        <div className="grid gap-3 @md:grid-cols-2 @2xl:grid-cols-3 @5xl:grid-cols-7">
           {runs.map(({ kind, last }) => (
             <div key={kind} className="rounded-lg border border-border p-3 text-sm">
               <div className="font-medium">{titleCase(kind)}</div>
@@ -127,6 +127,7 @@ export default function DashboardPage() {
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" disabled={!!busy} onClick={() => act("intake/run").catch(() => undefined)}>Run email intake</Button>
           <Button size="sm" variant="outline" disabled={!!busy} onClick={() => act("bols/pull").catch(() => undefined)}>Pull BOL feed</Button>
+          <Button size="sm" variant="outline" disabled={!!busy} onClick={() => act("rack-prices/import").catch(() => undefined)}>Import rack feed</Button>
           <Button size="sm" variant="outline" disabled={!!busy} onClick={() => act("market/refresh").catch(() => undefined)}>Refresh market feed</Button>
           <Button size="sm" variant="outline" disabled={!!busy} onClick={() => act("quickbooks/sync-invoices").then(() => act("quickbooks/sync-payments")).catch(() => undefined)}>Sync QuickBooks</Button>
         </div>

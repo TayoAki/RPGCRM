@@ -71,6 +71,16 @@ export function useCopilotFeatures({ setSelectedOrderId, setSelectedLoadId }: { 
     },
   }, []);
   useRenderTool({
+    name: "import_rack_prices",
+    parameters: any,
+    render: ({ result, status }) => {
+      const r = parseResult<{ summary?: string; imported?: Rec[]; skipped?: Rec[] }>(result);
+      const rows = (r?.imported ?? []).slice(0, 8).map((x) => `${str(x.supplier)} · ${str(x.terminal)} · ${str(x.product)}: ${ppg(num(x.pricePerGallon))}${typeof x.change === "number" ? ` (${x.change >= 0 ? "+" : ""}${x.change.toFixed(4)})` : ""}`);
+      const more = (r?.imported?.length ?? 0) - rows.length;
+      return <ResultCard title="Rack feed imported" status={status} error={errorOf(r)} lines={r ? [str(r.summary), ...rows, ...(more > 0 ? [`+${more} more postings`] : [])] : []} onOpen={() => go("pricing")} openLabel="Open pricing" />;
+    },
+  }, []);
+  useRenderTool({
     name: "enter_rack_price",
     parameters: any,
     render: ({ result, status }) => {
