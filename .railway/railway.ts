@@ -49,6 +49,9 @@ export default defineRailway(() => {
       // DTN_BOL_MODE: "https",
       // DTN_BOL_URL: "https://<from the DTN onboarding packet>",
       // DTN_API_KEY: preserve(),
+      // Staff accounts are created with the README's demo password unless this is set
+      // before the first start (see README "Staff sign-in").
+      // STAFF_BOOTSTRAP_PASSWORD: preserve(),
     },
   });
 
@@ -57,12 +60,15 @@ export default defineRailway(() => {
       branch: "claude/quirky-cerf-cva5ud",
       rootDirectory: "frontend",
     }),
-    healthcheck: "/",
+    // "/" redirects to the staff sign-in page, so the health check uses the public liveness route.
+    healthcheck: "/api/health",
     healthcheckTimeout: 300,
     env: {
       PORT: "3000",
       // Private-network address of the agent; the browser never calls it directly.
       AGENT_URL: "http://${{agent.RAILWAY_PRIVATE_DOMAIN}}:8000",
+      // Build-time flag: "1" lists the demo accounts on the sign-in pages. Leave unset in production.
+      // NEXT_PUBLIC_DEMO_ACCOUNTS: "1",
     },
   });
 

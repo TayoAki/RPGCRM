@@ -1,7 +1,7 @@
 # Authentication Plan — RPGCRM
 
 **Date:** 2026-09-16
-**Status:** proposal, nothing implemented yet
+**Status:** Phase 1 (staff sign-in, sessions, route protection, identity in the agent) is built with built-in accounts; Phases 2 to 4 are open
 **Scope:** sign-in, sessions, route protection, passing the signed-in user to
 the agent, a minimal user model, and the hooks the later multi-tenant work
 needs. Organizations and tenant-scoped data are designed for here but built
@@ -9,7 +9,62 @@ in [SAAS_AUDIT.md](./SAAS_AUDIT.md) Phase 1 alongside the Postgres move.
 
 ---
 
-## 0. Status update: customer portal accounts are built
+## 0. Status update: staff sign-in (Phase 1) and portal accounts are built
+
+### Staff sign-in, Phase 1 ("lock the door"): built 2026-09-16
+
+The outcome the phase asked for holds: nobody reaches a page, an API route,
+or the agent without a valid session, and the demo-user literals and the
+"acting as" switcher are gone. It shipped with the plan's allowed fallback,
+built-in accounts instead of Clerk, because no provider keys or network were
+available and the same accounts already existed for the portal:
+
+- **Accounts.** `staff` rows carry scrypt password hashes with per-user salts
+  (`agent/src/services/passwords.ts`, shared with the portal). The seed and a
+  startup migration give existing databases credentials with the demo password
+  (`RPGstaff!2026`) or `STAFF_BOOTSTRAP_PASSWORD`. Users change their own
+  password from the user menu; the change revokes their other sessions.
+- **Sessions.** `POST /auth/login` issues an opaque 32-byte token stored in
+  `staffSessions` (7 days, last-seen tracking, purge on sign-in); five failed
+  attempts lock an email for 15 minutes; failures return one generic message.
+- **Agent gate.** `staffAuthGate` (`agent/src/services/staffAuth.ts`) runs
+  before the AG-UI endpoint and every `/ops` and `/auth` route except sign-in;
+  `/ping` and `/portal/*` stay public. A valid bearer session runs the request
+  inside an `AsyncLocalStorage` context, so REST handlers and copilot tools
+  attribute mutations with `currentActor()`; `x-actor-id` and CopilotKit
+  `properties` are no longer read. `currentActor()` throws outside a signed-in
+  request, so nothing is attributed to a default user.
+- **Frontend.** `frontend/proxy.ts` redirects pages to `/login` (with `next`)
+  and answers API routes with 401 when the cookie is missing; the workspace
+  layout re-verifies the cookie against `GET /auth/me` on every page load and
+  hands the verified user to the chrome and approval cards. `/api/auth/*`
+  keep the token in an httpOnly, SameSite=Lax, Secure cookie; `/api/ops/*`
+  and `/api/copilotkit` attach it as the bearer server-side (the CopilotKit
+  runtime forwards the request's `Authorization` header to the cloned
+  `HttpAgent`, so no `AuthedAgent` subclass was needed). `/api/health` is the
+  Railway health check.
+- **Roles.** Approval gates read the session's role; the demo reset needs
+  `admin`; the chrome shows the signed-in user with sign-out and password
+  change.
+- **Tests.** Agent: staff-auth unit tests (lockout, expiry, disabled accounts,
+  password change, migration, context propagation) and route tests for the
+  gate; Playwright: anonymous redirect and 401s, sign-in, a copilot mutation
+  attributed to the signed-in user, forged header ignored, role refusal,
+  password change, sign-out, portal still public.
+
+Deviations from the plan: no `AGENT_SHARED_SECRET` (the agent verifies the
+session itself, which is stronger than trusting the network boundary) and no
+Clerk (sign-up is closed by construction: accounts exist only in the store).
+Swapping in Clerk later touches `frontend/app/api/auth/*`, `proxy.ts`, and the
+gate's token verification; nothing else sees more than a verified
+`{ id, name, email, role }`.
+
+Still open for staff: password reset and invitations by email, an admin
+screen for accounts and roles, a persistent lockout store for multiple
+replicas, security headers and a login rate limit (Phase 4), SSO/MFA.
+INTEGRATIONS.md section 4.1 lists the steps to an 8/10.
+
+### Customer portal accounts: built
 
 The customer-facing half of this plan shipped ahead of the staff half. The
 portal (Module G) now has email + password accounts instead of per-customer
@@ -30,8 +85,10 @@ token links:
 
 Still open for the portal: self-service password reset (today: sales resets it),
 invitations from the Customers page, and moving the lockout counter out of
-process memory when the agent runs more than one replica. Staff sign-in
-(Phases 1 to 4 below) is unchanged and still the recommended next step.
+process memory when the agent runs more than one replica.
+
+Sections 1 to 8 below are the original plan, kept for the Phase 2 to 4 work;
+section 1 describes the state before Phase 1 shipped.
 
 ## 1. Where we are
 

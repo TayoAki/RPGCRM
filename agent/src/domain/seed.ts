@@ -1,4 +1,5 @@
 import { scryptSync } from "node:crypto";
+import { hashPassword, newSalt } from "../services/passwords.js";
 import type {
   AuditLogEntry,
   BillingStatus,
@@ -96,6 +97,30 @@ export function buildPortalUsers(customers: Customer[], contacts: Contact[], cre
   });
 }
 
+export const STAFF_DEMO_PASSWORD = "RPGstaff!2026";
+
+/** Password given to staff accounts when they are first created (seed or startup migration). */
+export function staffBootstrapPassword(): string {
+  return process.env.STAFF_BOOTSTRAP_PASSWORD || STAFF_DEMO_PASSWORD;
+}
+
+export type StaffDirectoryEntry = Pick<StaffUser, "id" | "name" | "email" | "role">;
+
+/** The staff directory without credentials; `withStaffCredentials` turns each entry into a login. */
+export const STAFF_DIRECTORY: StaffDirectoryEntry[] = [
+  { id: "u-dana", name: "Dana Whitfield", email: "dana@rpgfuel.example", role: "management" },
+  { id: "u-marcus", name: "Marcus Lee", email: "marcus@rpgfuel.example", role: "dispatch" },
+  { id: "u-priya", name: "Priya Natarajan", email: "priya@rpgfuel.example", role: "pricing" },
+  { id: "u-elena", name: "Elena Ortiz", email: "elena@rpgfuel.example", role: "billing" },
+  { id: "u-sam", name: "Sam Carter", email: "sam@rpgfuel.example", role: "admin" },
+];
+
+/** Give a staff entry a fresh salt and the bootstrap password. Also used by the startup migration. */
+export function withStaffCredentials(user: StaffDirectoryEntry, createdAt: string, password: string = staffBootstrapPassword()): StaffUser {
+  const salt = newSalt();
+  return { ...user, passwordHash: hashPassword(password, salt), salt, status: "active", createdAt };
+}
+
 export function buildSeed(now: Date = new Date()): OpsState {
   const rng = mulberry32(20260916);
   const dayIso = (offset: number): string => new Date(now.getTime() + offset * DAY).toISOString().slice(0, 10);
@@ -103,13 +128,7 @@ export function buildSeed(now: Date = new Date()): OpsState {
   const today = dayIso(0);
 
   // ---- Reference data --------------------------------------------------------
-  const staff: StaffUser[] = [
-    { id: "u-dana", name: "Dana Whitfield", email: "dana@rpgfuel.example", role: "management" },
-    { id: "u-marcus", name: "Marcus Lee", email: "marcus@rpgfuel.example", role: "dispatch" },
-    { id: "u-priya", name: "Priya Natarajan", email: "priya@rpgfuel.example", role: "pricing" },
-    { id: "u-elena", name: "Elena Ortiz", email: "elena@rpgfuel.example", role: "billing" },
-    { id: "u-sam", name: "Sam Carter", email: "sam@rpgfuel.example", role: "admin" },
-  ];
+  const staff: StaffUser[] = STAFF_DIRECTORY.map((u) => withStaffCredentials(u, hoursAgo(24 * 60)));
 
   const products: Product[] = [
     { id: "p-ulsd", code: "ULSD", name: "ULSD (Clear #2 Diesel)", category: "diesel", dyed: false, taxCategory: "clear_diesel" },
@@ -515,7 +534,7 @@ export function buildSeed(now: Date = new Date()): OpsState {
     staff, customers, deliveryLocations, contacts, products, suppliers, terminals, carriers, carrierRates,
     priceIndexes, indexPrices, rackPrices, pricingRules, customerPrices, forecasts,
     emailIntakes, orders, orderEvents, loads, loadEvents, bols, deliveries,
-    taxRates, invoices, payments, qbInvoices, loadMargins, exceptions: [], auditLog, integrationRuns, portalUsers, portalSessions: [],
+    taxRates, invoices, payments, qbInvoices, loadMargins, exceptions: [], auditLog, integrationRuns, portalUsers, portalSessions: [], staffSessions: [],
   };
   let exSeq = 0;
   const detected = detectExceptions(state, now, (req) => evaluatePrice(pricingCtx, req));

@@ -73,17 +73,28 @@ The copilot can also open pages and drawers (`navigate_to`, `focus_order`,
 `focus_load`). After any change it pushes a fresh snapshot to the UI, so boards and
 badges update without a reload.
 
-Staff sign-in is not built yet (see [AUTH_PLAN.md](./AUTH_PLAN.md)); customers do sign in to the portal. The **acting user**
-dropdown in the top bar stands in for a session; roles gate approvals (for
-example, only management can approve an invoice).
+### Staff sign-in
 
-| Acting user      | Role       |
-| ---------------- | ---------- |
-| Dana Whitfield   | management |
-| Marcus Lee       | dispatch   |
-| Priya Natarajan  | pricing    |
-| Elena Ortiz      | billing    |
-| Sam Carter       | admin      |
+Staff sign in with email and password ([AUTH_PLAN.md](./AUTH_PLAN.md) Phase 1).
+Every page, API route, and the agent endpoint need a session, which lives in an
+httpOnly cookie and is checked by the agent on every call; roles gate approvals
+(for example, only management can approve an invoice) and every change is
+attributed to the signed-in user. Customers sign in separately to the portal.
+
+| Staff account    | Email                    | Role       |
+| ---------------- | ------------------------ | ---------- |
+| Dana Whitfield   | `dana@rpgfuel.example`   | management |
+| Marcus Lee       | `marcus@rpgfuel.example` | dispatch   |
+| Priya Natarajan  | `priya@rpgfuel.example`  | pricing    |
+| Elena Ortiz      | `elena@rpgfuel.example`  | billing    |
+| Sam Carter       | `sam@rpgfuel.example`    | admin      |
+
+The demo password for every staff account is `RPGstaff!2026`; set
+`STAFF_BOOTSTRAP_PASSWORD` on the agent before its first start to bootstrap with
+your own. Change it from the user menu after signing in (other sessions for the
+account are signed out); five failed attempts lock an email for 15 minutes. The
+sign-in pages list the demo accounts only when the frontend is built with
+`NEXT_PUBLIC_DEMO_ACCOUNTS=1`.
 
 ## Sample data instead of integrations
 
@@ -142,12 +153,14 @@ agent/                TypeScript Strands agent served over AG-UI by Express (:80
   src/billing/        invoice builder
   src/margin/         expected vs actual margin
   src/exceptions/     checkpoint rules
-  src/services/       the operations service layer (used by both tools and REST routes)
+  src/services/       the operations service layer (used by both tools and REST routes); staffAuth.ts and portal.ts hold sign-in
   src/tools/          copilot tools
-  src/routes.ts       REST routes under /ops and /portal
+  src/app.ts          Express app: /ping, the staff auth gate, the agent endpoint, REST routes
+  src/routes.ts       REST routes under /ops, /auth, and /portal
   samples/            sample JSON standing in for integrations
 frontend/             Next.js (App Router) + CopilotKit UI (:3000); API routes proxy to the agent
-  app/(ops)/          workspace pages           app/portal/   customer portal
+  proxy.ts            sign-in gate for pages and API routes
+  app/(ops)/          workspace pages (session verified in the layout)   app/login/   staff sign-in   app/portal/   customer portal
   components/cards/   copilot cards             hooks/        ops state, copilot wiring
 scripts/sync-types.mjs  copies agent/src/domain/types.ts to frontend/lib/domain.ts
 ```
@@ -200,8 +213,9 @@ Prefer two terminals? Run `npm --prefix agent run dev` and `npm --prefix fronten
 
 ## Try it (a ten-minute walkthrough)
 
-1. **Dashboard** (`/`): today's numbers, 14-day gallons, market movement, and what
-   needs attention. The copilot pills on the right run the same flows from chat.
+1. **Sign in** at `/login` as `dana@rpgfuel.example` (password `RPGstaff!2026`).
+   You land on the **Dashboard** (`/`): today's numbers, 14-day gallons, market
+   movement, and what needs attention. The copilot pills on the right run the same flows from chat.
 2. **Intake**: on Orders & Intake press **Run email intake**. Nine sample emails
    are parsed into twelve drafts: six from email bodies, three rows from an
    attached CSV schedule, two rows from an attached Excel sheet, and one from an
@@ -218,10 +232,10 @@ Prefer two terminals? Run `npm --prefix agent run dev` and `npm --prefix fronten
    load drawer.
 5. **BOLs**: press **Pull BOL feed**. Three BOLs match loads automatically, one is
    a duplicate, one needs a manual match on the BOLs page.
-6. **Billing**: press **Prepare invoices**. Switch the acting user to Elena Ortiz
-   (billing) and try to approve one: it is refused. Switch to Dana Whitfield
-   (management) and approve, then **Sync QuickBooks**: invoices get QuickBooks ids
-   and the sample payments are applied.
+6. **Billing**: press **Prepare invoices**. Sign out and sign in as Elena Ortiz
+   (billing), then try to approve one: it is refused. Sign back in as Dana
+   Whitfield (management) and approve, then **Sync QuickBooks**: invoices get
+   QuickBooks ids and the sample payments are applied.
 7. **Exceptions**: the low-margin load, the missing BOL, and the unpriced order show
    up here (and in the daily brief). Resolve one with a note.
 8. **Portal**: open `/portal/login` and sign in as `orders@lonestaraggregates.com`
@@ -232,17 +246,23 @@ Prefer two terminals? Run `npm --prefix agent run dev` and `npm --prefix fronten
    backtest over the stored history.
 10. **Reports**: profitability by customer and by load, expected vs actual.
 
-Reset the demo at any time with `POST /ops/admin/reseed` (acting user Sam Carter,
-admin) or by deleting the SQLite file.
+Reset the demo at any time with `POST /ops/admin/reseed` signed in as Sam Carter
+(the admin; staff logins and sessions survive the reset) or by deleting the
+SQLite file.
 
 ## REST API (agent)
 
-Every UI action goes through the same routes the copilot's tools use, with the
-acting user in the `x-actor-id` header.
+Every UI action goes through the same routes the copilot's tools use. Everything
+except `/ping`, `/auth/login`, and `/portal/*` needs a staff session:
+`Authorization: Bearer <token>` from `/auth/login`, which the frontend keeps in an
+httpOnly cookie and attaches server-side (also on copilot requests). The agent
+attributes each change to that session's user; identity headers from the caller
+are ignored.
 
 | Method | Route                                              | Purpose                                     |
 | ------ | -------------------------------------------------- | ------------------------------------------- |
-| GET    | `/ping`                                            | Health check                                |
+| GET    | `/ping`                                            | Health check (public)                       |
+| POST   | `/auth/login`, `/auth/logout`, `/auth/password`; GET `/auth/me` | Staff sign-in, sign-out, password change, who am I |
 | GET    | `/ops`                                             | Trimmed operational snapshot for the UI     |
 | GET    | `/ops/dashboard`                                   | Dashboard metrics and daily series          |
 | GET    | `/ops/reports/rollups?period=week`                 | Totals by day, week, or month               |
@@ -256,7 +276,7 @@ acting user in the `x-actor-id` header.
 | POST   | `/ops/invoices/prepare`, `/ops/invoices/:id/approve`, `/ops/invoices/:id/reject` | Invoices      |
 | POST   | `/ops/quickbooks/sync-invoices`, `/ops/quickbooks/sync-payments` | QuickBooks (mock)             |
 | GET    | `/ops/exceptions/triage`, POST `/ops/exceptions/:id/resolve`, `/ops/exceptions/:id/acknowledge` | Exceptions |
-| POST   | `/ops/admin/reseed`                                | Reset demo data (admin)                     |
+| POST   | `/ops/admin/reseed`                                | Reset demo data (admin role only)           |
 | POST   | `/portal/login`, `/portal/logout`; GET `/portal/me` (Bearer) | Customer portal sign-in and data      |
 
 ## Tests and checks
@@ -271,7 +291,10 @@ The copilot flows were verified end to end against a mock LLM
 ([aimock](https://github.com/CopilotKit/aimock)) with Playwright: every page
 renders without console errors, and scripted prompts exercise the daily brief,
 triage, quoting, intake, BOL feed, invoice preparation, navigation, and the
-confirm-order card through to a created order.
+confirm-order card through to a created order. The same setup covers sign-in:
+anonymous requests are redirected or refused, a copilot mutation is attributed to
+the signed-in user, a forged identity header is ignored, role refusals, password
+change, sign-out, and the portal staying public.
 
 ## Deploying to Railway
 
@@ -282,7 +305,7 @@ infrastructure-as-code; `railway config plan` / `railway config apply`).
 | Service    | Root directory | Health check | Notes                                                       |
 | ---------- | -------------- | ------------ | ----------------------------------------------------------- |
 | `agent`    | `agent`        | `GET /ping`  | private only, port 8000, volume mounted at `/data`          |
-| `frontend` | `frontend`     | `GET /`      | public domain, port 3000, reaches the agent over private networking |
+| `frontend` | `frontend`     | `GET /api/health` | public domain, port 3000, reaches the agent over private networking (`/` redirects to sign-in) |
 
 Both services build from the Dockerfile in their root directory and deploy on
 every push to the configured branch.
@@ -293,14 +316,17 @@ every push to the configured branch.
 | `OPENAI_BASE_URL` / `OPENAI_API_MODE` / `OPENAI_MODEL` | `agent` | `https://openrouter.ai/api/v1` / `chat` / `openai/gpt-5.4` (or remove all three for OpenAI directly) |
 | `RPG_DB_PATH`                                     | `agent`    | `/data/rpg.db`                                    |
 | `AGENT_URL`                                       | `frontend` | `http://${{agent.RAILWAY_PRIVATE_DOMAIN}}:8000`   |
+| `STAFF_BOOTSTRAP_PASSWORD` (optional)             | `agent`    | password for staff accounts when they are first created; the demo password otherwise |
+| `NEXT_PUBLIC_DEMO_ACCOUNTS` (optional, build time) | `frontend` | `1` to list the demo accounts on the sign-in pages; unset in production |
 
-To reset the demo data in production, call `POST /ops/admin/reseed` through the
-frontend proxy (`/api/ops/admin/reseed` with `x-actor-id: u-sam`) or delete
-`rpg.db` on the volume and redeploy.
+To reset the demo data in production, sign in as the admin (Sam Carter) and call
+`POST /api/ops/admin/reseed` with that session, or delete `rpg.db` on the volume
+and redeploy.
 
 ## Further reading
 
 - [SAAS_AUDIT.md](./SAAS_AUDIT.md): what it takes to turn this into a multi-tenant SaaS product
-- [AUTH_PLAN.md](./AUTH_PLAN.md): the authentication and authorization plan
+- [AUTH_PLAN.md](./AUTH_PLAN.md): the authentication and authorization plan (Phase 1 built)
+- [INTEGRATIONS.md](./INTEGRATIONS.md): what each real integration needs, an interoperability assessment, and the path to 8/10 in every readiness area
 - [RPG_DATA_MODEL.md](./RPG_DATA_MODEL.md): the data model behind the ops store
 - [RPG_TRANSFORMATION_PLAN.md](./RPG_TRANSFORMATION_PLAN.md) and [RPG_PLAN_REVIEW.md](./RPG_PLAN_REVIEW.md): how the plan was scoped and rated

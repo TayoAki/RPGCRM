@@ -1,6 +1,7 @@
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import type { OpsStore } from "../domain/store.js";
 import type { Customer, Invoice, Load, Order, PortalSession, PortalUser } from "../domain/types.js";
+import { Lockout, normalizeEmail, verifyPassword } from "./passwords.js";
 
 /**
  * Customer portal sign-in (Module G, "secure, customer-scoped login").
@@ -11,22 +12,8 @@ import type { Customer, Invoice, Load, Order, PortalSession, PortalUser } from "
  */
 
 export const SESSION_DAYS = 7;
-const MAX_FAILURES = 5;
-const LOCKOUT_MINUTES = 15;
 
-const failures = new Map<string, { count: number; until: number }>();
-
-export function hashPassword(password: string, salt: string): string {
-  return scryptSync(password, salt, 64).toString("hex");
-}
-
-export function verifyPassword(password: string, salt: string, hash: string): boolean {
-  const a = Buffer.from(hashPassword(password, salt), "hex");
-  const b = Buffer.from(hash, "hex");
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
-const normalizeEmail = (email: string): string => email.trim().toLowerCase();
+const lockout = new Lockout();
 
 export interface PortalLogin {
   token: string;
@@ -37,18 +24,13 @@ export interface PortalLogin {
 
 export function portalLogin(store: OpsStore, email: string, password: string, now: Date = new Date()): PortalLogin {
   const key = normalizeEmail(email);
-  const lock = failures.get(key);
-  if (lock && lock.count >= MAX_FAILURES && lock.until > now.getTime()) {
-    const minutes = Math.max(1, Math.ceil((lock.until - now.getTime()) / 60_000));
-    throw new Error(`Too many sign-in attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`);
-  }
+  lockout.check(key, now);
   const user = store.all<PortalUser>("portalUsers").find((u) => u.email === key && u.status === "active");
   if (!user || !password || !verifyPassword(password, user.salt, user.passwordHash)) {
-    const count = lock && lock.until > now.getTime() ? lock.count + 1 : 1;
-    failures.set(key, { count, until: now.getTime() + LOCKOUT_MINUTES * 60_000 });
+    lockout.fail(key, now);
     throw new Error("Invalid email or password.");
   }
-  failures.delete(key);
+  lockout.clear(key);
   purgeExpiredSessions(store, now);
   const customer = store.customer(user.customerId);
   const session: PortalSession = {

@@ -11,10 +11,12 @@ import type {
   OpsState,
   Order,
   Product,
+  StaffSession,
+  StaffUser,
   Terminal,
   Contact,
 } from "./types.js";
-import { buildPortalUsers, buildSeed } from "./seed.js";
+import { buildPortalUsers, buildSeed, withStaffCredentials } from "./seed.js";
 
 export const nowIso = (): string => new Date().toISOString();
 
@@ -86,7 +88,9 @@ export class OpsStore {
       indexPrices: s.indexPrices.filter((p) => p.date >= indexSince),
       customerPrices: s.customerPrices.slice(-200),
       auditLog: s.auditLog.slice(-150),
-      // Staff can see who has a portal account, never the credentials or sessions.
+      // Credentials and sessions never leave the agent: staff and portal accounts are listed with them blanked.
+      staff: s.staff.map((u) => ({ ...u, passwordHash: "", salt: "" })),
+      staffSessions: [],
       portalUsers: s.portalUsers.map((u) => ({ ...u, passwordHash: "", salt: "" })),
       portalSessions: [],
     };
@@ -173,6 +177,12 @@ export class OpsStore {
       this.audit("system", "migration.portal_accounts", "system", "portalUsers", `Created ${users.length} customer portal account(s) for existing customers`);
       applied.push("portal_accounts");
     }
+    const staffWithoutLogin = this.all<StaffUser>("staff").filter((u) => !u.passwordHash);
+    if (staffWithoutLogin.length > 0) {
+      this.saveMany("staff", staffWithoutLogin.map((u) => withStaffCredentials(u, now.toISOString())));
+      this.audit("system", "migration.staff_accounts", "system", "staff", `Created sign-in credentials for ${staffWithoutLogin.length} staff account(s)`);
+      applied.push("staff_accounts");
+    }
     return applied;
   }
 
@@ -181,14 +191,19 @@ export class OpsStore {
     this.reseed();
   }
 
+  /** Rebuild the demo business data. Staff logins (including changed passwords) and their sessions survive the reset. */
   reseed(now: Date = new Date()): void {
     const data = buildSeed(now);
+    const keptStaff = this.all<StaffUser>("staff").filter((u) => !!u.passwordHash);
+    const keptSessions = this.all<StaffSession>("staffSessions");
     this.docs.transaction(() => {
       this.docs.clearAll();
       for (const c of COLLECTIONS) {
         const rows = (data as unknown as Record<string, Doc[]>)[c] ?? [];
         for (const row of rows) this.docs.put(c, row);
       }
+      for (const u of keptStaff) this.docs.put("staff", u);
+      for (const s of keptSessions) this.docs.put("staffSessions", s);
       this.docs.setMeta("seededAt", now.toISOString());
     });
   }

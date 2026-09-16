@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Field, Input } from "@/components/ops/primitives";
 
-/** Demo accounts seeded with the sample data (one per customer, shared demo password). */
+/** Demo accounts seeded with the sample data (one per customer, shared demo password); listed only when NEXT_PUBLIC_DEMO_ACCOUNTS=1 at build time. */
+const SHOW_DEMO = process.env.NEXT_PUBLIC_DEMO_ACCOUNTS === "1";
 const DEMO = { password: "RPGportal!2026", emails: ["orders@lonestaraggregates.com", "fuel@quickstopmarkets.com", "dispatch@prairietrucking.com", "agrant@trinityriverco.example"] };
 
 export default function PortalLoginPage() {
@@ -42,13 +43,13 @@ export default function PortalLoginPage() {
           <Button type="submit" className="w-full" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</Button>
         </form>
       </Card>
-      <details className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
+      {SHOW_DEMO ? <details className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
         <summary className="cursor-pointer font-medium">Demo accounts (sample data)</summary>
         <div className="mt-2 space-y-1">
           {DEMO.emails.map((e) => <div key={e}><button type="button" className="text-link hover:underline" onClick={() => { setEmail(e); setPassword(DEMO.password); }}>{e}</button></div>)}
           <div>Password for every demo account: <code className="rounded bg-secondary px-1">{DEMO.password}</code></div>
         </div>
-      </details>
+      </details> : null}
       <p className="text-xs text-muted-foreground">Need an account or a password reset? Email sales@royaltypetroleumsgroup.com or call (404) 424-9835.</p>
     </div>
   );

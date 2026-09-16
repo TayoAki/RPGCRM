@@ -13,11 +13,26 @@
 
 export type StaffRole = "admin" | "management" | "dispatch" | "pricing" | "billing";
 
+/** A staff login. Passwords are scrypt hashes with per-user salts; the UI snapshot blanks them. */
 export interface StaffUser {
   id: string;
   name: string;
   email: string;
   role: StaffRole;
+  passwordHash: string;
+  salt: string;
+  status: "active" | "disabled";
+  createdAt: string;
+  lastLoginAt?: string;
+}
+
+/** A signed-in staff browser session; the id is the bearer token, kept by the frontend in an httpOnly cookie. */
+export interface StaffSession {
+  id: string;
+  staffUserId: string;
+  createdAt: string;
+  expiresAt: string;
+  lastSeenAt: string;
 }
 
 export type BillingBasis = "net" | "gross";
@@ -33,7 +48,6 @@ export interface Customer {
   creditLimit: number;
   taxExempt: boolean;
   status: CustomerStatus;
-  /** Opaque token that scopes the customer portal (MVP stand-in for portal auth). */
   quickbooksCustomerId?: string;
   notes?: string;
 }
@@ -619,6 +633,8 @@ export interface IntegrationRun {
   recordsIn: number;
   recordsOut: number;
   summary: string;
+  /** Which connector produced the run (e.g. "Sample feed", "DTN (https)"). */
+  source?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -658,6 +674,7 @@ export interface OpsState {
   integrationRuns: IntegrationRun[];
   portalUsers: PortalUser[];
   portalSessions: PortalSession[];
+  staffSessions: StaffSession[];
 }
 
 export const COLLECTIONS = [
@@ -693,6 +710,7 @@ export const COLLECTIONS = [
   "integrationRuns",
   "portalUsers",
   "portalSessions",
+  "staffSessions",
 ] as const;
 
 export type Collection = (typeof COLLECTIONS)[number];

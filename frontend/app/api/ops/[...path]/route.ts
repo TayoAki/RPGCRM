@@ -1,24 +1,27 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { AGENT_URL, STAFF_COOKIE } from "@/lib/staff-session";
 
-const AGENT_URL = process.env.AGENT_URL ?? "http://localhost:8000";
-
-// Generic proxy for the agent's /ops/* REST routes. Forwards the JSON body and
-// the acting user's id; every mutation goes through the same service layer the
-// copilot's tools use.
+// Generic proxy for the agent's /ops/* REST routes. Forwards the JSON body with
+// the staff session as a bearer token; the agent attributes every mutation to
+// that session's user (nothing the browser sends about identity is trusted).
 async function forward(req: NextRequest, params: Promise<{ path: string[] }>) {
+  const token = req.cookies.get(STAFF_COOKIE)?.value;
+  if (!token) return NextResponse.json({ error: "Please sign in." }, { status: 401 });
   const { path } = await params;
   const target = `${AGENT_URL}/ops/${path.join("/")}${req.nextUrl.search}`;
   const init: RequestInit = {
     method: req.method,
-    headers: { "Content-Type": "application/json", "x-actor-id": req.headers.get("x-actor-id") ?? "" },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     cache: "no-store",
   };
   if (req.method !== "GET") init.body = await req.text();
   try {
     const res = await fetch(target, init);
     const text = await res.text();
-    return new NextResponse(text, { status: res.status, headers: { "Content-Type": "application/json" } });
+    const out = new NextResponse(text, { status: res.status, headers: { "Content-Type": "application/json" } });
+    if (res.status === 401) out.cookies.delete(STAFF_COOKIE);
+    return out;
   } catch (e) {
     return NextResponse.json({ error: `agent unreachable: ${(e as Error).message}` }, { status: 502 });
   }

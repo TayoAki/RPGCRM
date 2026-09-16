@@ -1,13 +1,11 @@
-import express from "express";
-import cors from "cors";
 import { Agent } from "@strands-agents/sdk";
 import { OpenAIModel } from "@strands-agents/sdk/models/openai";
 import { StrandsAgent } from "@ag-ui/aws-strands";
-import { addPing, addStrandsExpressEndpoint } from "@ag-ui/aws-strands/server";
+import { addStrandsExpressEndpoint } from "@ag-ui/aws-strands/server";
 
 import { ops } from "./src/domain/store.js";
-import { registerOpsRoutes } from "./src/routes.js";
-import { enterActor } from "./src/services/actor.js";
+import { createApp } from "./src/app.js";
+import { currentStaff } from "./src/services/actor.js";
 import { quotePriceTool, explainPriceTool, priceBoardTool, enterRackPriceTool, importRackPricesTool } from "./src/tools/pricing.js";
 import {
   runEmailIntakeTool, listIntakeQueueTool, reviewIntakeTool, listOrdersTool, createOrderTool, updateOrderStatusTool, releaseCreditHoldTool,
@@ -80,12 +78,11 @@ const aguiAgent = new StrandsAgent({
   name: "strands_agent",
   config: {
     toolBehaviors: Object.fromEntries(MUTATING.map((n) => [n, pushState])),
-    // A compact operational summary on every prompt, plus who is acting.
-    stateContextBuilder: (input, prompt) => {
-      const props = (input as { forwardedProps?: { actorId?: string } }).forwardedProps;
-      enterActor(props?.actorId);
+    // A compact operational summary on every prompt, plus who is acting: the
+    // signed-in user from the verified session, never anything in the request body.
+    stateContextBuilder: (_input, prompt) => {
+      const actor = currentStaff();
       const s = ops.snapshot();
-      const actor = s.staff.find((u) => u.id === (props?.actorId ?? "u-dana"));
       const open = s.exceptions.filter((e) => e.status !== "resolved");
       const lines = [
         `Today: ${new Date().toISOString().slice(0, 10)}. Acting user: ${actor ? `${actor.name} (${actor.role}, id ${actor.id})` : "unknown"}.`,
@@ -98,12 +95,8 @@ const aguiAgent = new StrandsAgent({
   },
 });
 
-const app = express();
-app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: "50mb" }));
-addPing(app, "/ping");
-addStrandsExpressEndpoint(app, aguiAgent, { path: "/" });
-registerOpsRoutes(app);
+// /ping is public for the health check; the agent endpoint, /ops/*, and /auth/me sit behind the staff session gate.
+const app = createApp({ mountAgent: (a) => addStrandsExpressEndpoint(a, aguiAgent, { path: "/" }) });
 
 const PORT = Number(process.env.PORT) || 8000;
 app.listen(PORT, () => {

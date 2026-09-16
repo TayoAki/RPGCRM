@@ -17,7 +17,7 @@ export const EMPTY_STATE: OpsState = {
   priceIndexes: [], indexPrices: [], rackPrices: [], pricingRules: [], customerPrices: [], forecasts: [],
   emailIntakes: [], orders: [], orderEvents: [], loads: [], loadEvents: [], bols: [], deliveries: [],
   taxRates: [], invoices: [], payments: [], qbInvoices: [], loadMargins: [], exceptions: [], auditLog: [], integrationRuns: [],
-  portalUsers: [], portalSessions: [],
+  portalUsers: [], portalSessions: [], staffSessions: [],
 };
 
 export function isOpsState(s: unknown): s is OpsState {
@@ -137,25 +137,3 @@ export const NEXT_ORDER_STATUS: Record<OrderStatus, OrderStatus | null> = {
 };
 
 export const isOpenOrder = (o: Order): boolean => !["delivered", "cancelled"].includes(o.status);
-
-// ---- acting user (MVP stand-in for authentication) ------------------------------------
-
-const ACTOR_KEY = "rpg.actorId";
-export const DEFAULT_ACTOR_ID = "u-dana";
-
-export function getActorId(): string {
-  try {
-    return typeof window !== "undefined" ? window.localStorage.getItem(ACTOR_KEY) || DEFAULT_ACTOR_ID : DEFAULT_ACTOR_ID;
-  } catch {
-    return DEFAULT_ACTOR_ID;
-  }
-}
-
-export function setActorId(id: string): void {
-  try {
-    window.localStorage.setItem(ACTOR_KEY, id);
-    window.dispatchEvent(new Event("rpg-actor-change"));
-  } catch {
-    /* ignore */
-  }
-}

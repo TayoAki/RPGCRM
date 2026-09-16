@@ -2,14 +2,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAgent, UseAgentUpdate } from "@copilotkit/react-core/v2";
 import type { OpsState } from "@/lib/domain";
-import { EMPTY_STATE, getActorId, isOpsState } from "@/lib/ops";
+import { EMPTY_STATE, isOpsState } from "@/lib/ops";
 
 /**
  * Operational state for the workspace. Two feeds merge into one snapshot:
  * the agent's shared state (STATE_SNAPSHOT after copilot tool calls) and
  * GET /api/ops after UI-initiated actions. `act()` posts to the agent's REST
- * routes through the Next.js proxy with the acting user's id.
+ * routes through the Next.js proxy, which attaches the staff session; a 401
+ * (session ended) sends the browser back to sign-in.
  */
+
+function toSignIn(): void {
+  if (typeof window === "undefined") return;
+  const next = window.location.pathname + window.location.search;
+  window.location.assign(next === "/" ? "/login" : `/login?next=${encodeURIComponent(next)}`);
+}
 export function useOps() {
   const { agent } = useAgent({ agentId: "strands_agent", updates: [UseAgentUpdate.OnStateChanged] });
   const [state, setState] = useState<OpsState | null>(null);
@@ -22,6 +29,10 @@ export function useOps() {
   const refresh = useCallback(async () => {
     try {
       const r = await fetch("/api/ops", { cache: "no-store" });
+      if (r.status === 401) {
+        toSignIn();
+        return;
+      }
       const s = (await r.json()) as unknown;
       if (isOpsState(s)) {
         setState(s);
@@ -54,10 +65,14 @@ export function useOps() {
       try {
         const r = await fetch(`/api/ops/${path}`, {
           method,
-          headers: { "Content-Type": "application/json", "x-actor-id": getActorId() },
+          headers: { "Content-Type": "application/json" },
           body: method === "GET" || body === undefined ? undefined : JSON.stringify(body),
           cache: "no-store",
         });
+        if (r.status === 401) {
+          toSignIn();
+          throw new Error("Your session has ended. Please sign in again.");
+        }
         const j = (await r.json()) as T & { error?: string };
         if (!r.ok) throw new Error(j?.error ?? r.statusText);
         if (method === "POST") await refresh();

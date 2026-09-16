@@ -8,16 +8,15 @@ import { Button } from "@/components/ui/button";
 import type { BillingStatus, Load } from "@/lib/domain";
 import { BILLING_STATUSES } from "@/lib/domain";
 import { billingStatusLabel, BILLING_STATUS_STYLE, customerName, fmtDate, gal, INVOICE_STATUS_STYLE, money, ppg, productCode, productName, staffName, titleCase } from "@/lib/ops";
-import { useActorId } from "@/components/Providers";
+import { useSessionUser } from "@/components/Providers";
 import { cn } from "@/lib/utils";
 
 const ORDER = (s: BillingStatus) => BILLING_STATUSES.indexOf(s);
 
 export default function BillingPage() {
   const { state, act, busy, setSelectedLoadId } = useOpsContext();
-  const actorId = useActorId();
-  const actor = state.staff.find((u) => u.id === actorId);
-  const canApprove = !actor || ["management", "admin"].includes(actor.role);
+  const actor = useSessionUser();
+  const canApprove = ["management", "admin"].includes(actor.role);
   const [selected, setSelected] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const loads = state.loads.filter((l) => l.bolId && l.billingStatus);
@@ -97,7 +96,7 @@ export default function BillingPage() {
                 <div className="space-y-2 text-sm">
                   {inv.status === "pending_approval" || inv.status === "draft" ? (
                     <>
-                      <div className={cn("rounded-md px-3 py-2 text-xs", canApprove ? "bg-accent text-accent-foreground" : "bg-amber-50 text-amber-900")}>{canApprove ? "You can approve this invoice (management)." : `Acting as ${actor?.name} (${actor?.role}); switch to a management user to approve.`}</div>
+                      <div className={cn("rounded-md px-3 py-2 text-xs", canApprove ? "bg-accent text-accent-foreground" : "bg-amber-50 text-amber-900")}>{canApprove ? `You can approve this invoice (${actor.role}).` : `Signed in as ${actor.name} (${actor.role}); only management or admin can approve.`}</div>
                       <div className="flex flex-wrap gap-2">
                         <Button size="sm" disabled={!!busy || !canApprove} onClick={() => act(`invoices/${inv.id}/approve`).catch(() => undefined)}>Approve</Button>
                         <input className="h-8 flex-1 rounded-md border border-input bg-background px-2 text-xs" placeholder="Rejection reason" value={reason} onChange={(e) => setReason(e.target.value)} />

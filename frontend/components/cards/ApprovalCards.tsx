@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Row, money, ppg, gal } from "./shared";
 import { useOpsContext } from "@/components/ops-context";
+import { useSessionUser } from "@/components/Providers";
 import { Field, Input, NativeSelect } from "@/components/ops/primitives";
 
 /** Human-in-the-loop cards: nothing money-related happens until a person clicks. */
@@ -77,9 +78,8 @@ export function ConfirmIntakeCard({ args, status, respond }: { args?: { intakeId
 }
 
 export function ConfirmInvoiceCard({ args, status, respond }: { args?: { invoiceId?: string; invoiceNumber?: string; customerName?: string; loadNumber?: string; gallons?: number; pricePerGallon?: number; subtotal?: number; taxTotal?: number; total?: number; dueDate?: string }; status: string; respond?: (v: { approved: boolean }) => void }) {
-  const { state } = useOpsContext();
-  const actor = state.staff.find((u) => u.id === (typeof window !== "undefined" ? window.localStorage.getItem("rpg.actorId") ?? "u-dana" : "u-dana"));
-  const canApprove = !actor || ["management", "admin"].includes(actor.role);
+  const actor = useSessionUser();
+  const canApprove = ["management", "admin"].includes(actor.role);
   const done = status === "complete";
   return (
     <div className={frame}>
@@ -92,7 +92,7 @@ export function ConfirmInvoiceCard({ args, status, respond }: { args?: { invoice
         <Row label="Total" value={<span className="font-semibold">{money(args?.total)}</span>} />
         <Row label="Due" value={args?.dueDate ?? "—"} />
       </div>
-      {!canApprove && !done ? <div className="mt-2 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900">Acting as {actor?.name} ({actor?.role}). Switch to a management user in the top bar to approve.</div> : null}
+      {!canApprove && !done ? <div className="mt-2 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900">Signed in as {actor.name} ({actor.role}). Only management or admin can approve invoices; ask a manager to approve this one.</div> : null}
       {!done ? (
         <div className="mt-3 flex gap-2">
           <Button size="sm" disabled={!canApprove} onClick={() => respond?.({ approved: true })}>Approve</Button>

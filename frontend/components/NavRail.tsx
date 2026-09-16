@@ -11,7 +11,7 @@ import { Logo } from "@/components/Logo";
 import { useSidebarCollapsed } from "@/hooks/use-sidebar-collapsed";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useOpsContext } from "@/components/ops-context";
-import { useActorId } from "@/components/Providers";
+import { useSessionUser } from "@/components/Providers";
 import { openExceptions } from "@/lib/ops";
 
 type NavItem = { label: string; href: string; icon: LucideIcon; badge?: (n: { exceptions: number; intake: number; approvals: number }) => number };
@@ -34,8 +34,7 @@ export function NavRail() {
   const pathname = usePathname();
   const { collapsed, toggle } = useSidebarCollapsed();
   const { state } = useOpsContext();
-  const actorId = useActorId();
-  const actor = state.staff.find((u) => u.id === actorId);
+  const actor = useSessionUser();
   const counts = {
     exceptions: openExceptions(state).length,
     intake: state.emailIntakes.filter((e) => e.reviewStatus === "pending").length,
@@ -80,12 +79,12 @@ export function NavRail() {
           })}
         </nav>
         <div className={cn("mt-auto flex flex-col gap-1 border-t border-border py-2", collapsed ? "px-2" : "px-3")}>
-          <div className={cn("flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground", collapsed && "justify-center px-0")} title={actor ? `${actor.name} · ${actor.role}` : undefined}>
+          <div className={cn("flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground", collapsed && "justify-center px-0")} title={`${actor.name} · ${actor.role}`}>
             <UserCircle2 className="h-4 w-4 shrink-0" />
             {!collapsed && (
               <div className="min-w-0 leading-tight">
-                <div className="truncate text-foreground">{actor?.name ?? "—"}</div>
-                <div className="truncate text-[11px] capitalize">{actor?.role ?? "acting user"}</div>
+                <div className="truncate text-foreground">{actor.name}</div>
+                <div className="truncate text-[11px] capitalize">{actor.role}</div>
               </div>
             )}
           </div>

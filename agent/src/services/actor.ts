@@ -1,23 +1,34 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import type { StaffRole } from "../domain/types.js";
 
 /**
- * Who is acting. HTTP routes read the `x-actor-id` header; agent runs read
- * `forwardedProps.actorId` from the AG-UI request and enter this context at
- * the start of the run so tools can attribute their mutations. Until real
- * authentication lands (see AUTH_PLAN.md) the default is the management user.
+ * Who is acting. The staff auth gate (services/staffAuth.ts) resolves the
+ * bearer session on every request and runs the rest of the request inside
+ * this context, so REST handlers and copilot tools attribute their mutations
+ * to the signed-in user without threading an id through every call.
  */
-export const DEFAULT_ACTOR = "u-dana";
 
-const storage = new AsyncLocalStorage<{ actorId: string }>();
-
-export function enterActor(actorId: string | undefined): void {
-  storage.enterWith({ actorId: actorId || DEFAULT_ACTOR });
+export interface ActingUser {
+  id: string;
+  name: string;
+  email: string;
+  role: StaffRole;
 }
 
-export function runAsActor<T>(actorId: string | undefined, fn: () => T): T {
-  return storage.run({ actorId: actorId || DEFAULT_ACTOR }, fn);
+const storage = new AsyncLocalStorage<{ user: ActingUser }>();
+
+export function runAsActor<T>(user: ActingUser, fn: () => T): T {
+  return storage.run({ user }, fn);
 }
 
+/** The signed-in user's id. Throws outside a signed-in request: nothing is attributed to a default user. */
 export function currentActor(): string {
-  return storage.getStore()?.actorId ?? DEFAULT_ACTOR;
+  const user = storage.getStore()?.user;
+  if (!user) throw new Error("No signed-in user for this request. Please sign in.");
+  return user.id;
+}
+
+/** The signed-in user, or undefined outside a signed-in request. */
+export function currentStaff(): ActingUser | undefined {
+  return storage.getStore()?.user;
 }

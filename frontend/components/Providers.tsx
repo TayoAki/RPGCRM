@@ -1,27 +1,25 @@
 "use client";
-import { useSyncExternalStore } from "react";
+import { createContext, useContext } from "react";
 import { CopilotKit } from "@copilotkit/react-core/v2";
-import { DEFAULT_ACTOR_ID, getActorId } from "@/lib/ops";
+import type { SessionUser } from "@/lib/staff-session";
 
-function subscribe(cb: () => void) {
-  window.addEventListener("rpg-actor-change", cb);
-  window.addEventListener("storage", cb);
-  return () => {
-    window.removeEventListener("rpg-actor-change", cb);
-    window.removeEventListener("storage", cb);
-  };
+const SessionContext = createContext<SessionUser | null>(null);
+
+/** The signed-in staff user, verified server-side by the workspace layout. */
+export function useSessionUser(): SessionUser {
+  const user = useContext(SessionContext);
+  if (!user) throw new Error("useSessionUser must be used inside the signed-in workspace");
+  return user;
 }
 
-/** Reads the acting user (MVP stand-in for a session) and reacts to changes. */
-export function useActorId(): string {
-  return useSyncExternalStore(subscribe, getActorId, () => DEFAULT_ACTOR_ID);
-}
-
-export function Providers({ children }: { children: React.ReactNode }) {
-  const actorId = useActorId();
+export function Providers({ user, children }: { user: SessionUser; children: React.ReactNode }) {
+  // No identity is passed to the copilot from the browser: /api/copilotkit
+  // attaches the session server-side and the agent resolves the user from it.
   return (
-    <CopilotKit runtimeUrl="/api/copilotkit" agent="strands_agent" enableInspector={false} properties={{ actorId }}>
-      {children}
-    </CopilotKit>
+    <SessionContext.Provider value={user}>
+      <CopilotKit runtimeUrl="/api/copilotkit" agent="strands_agent" enableInspector={false}>
+        {children}
+      </CopilotKit>
+    </SessionContext.Provider>
   );
 }
