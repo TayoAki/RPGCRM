@@ -49,3 +49,15 @@ describe("customer portal sign-in (Module G)", () => {
     expect(JSON.stringify(ui)).not.toContain("portalToken");
   });
 });
+
+describe("startup migration", () => {
+  it("creates portal accounts for a database that predates them", () => {
+    const store = freshStore();
+    for (const u of store.all<any>("portalUsers")) store.delete("portalUsers", u.id);
+    expect(store.all("portalUsers")).toHaveLength(0);
+    expect(store.migrate(NOW)).toEqual(["portal_accounts"]);
+    expect(store.all("portalUsers")).toHaveLength(store.all("customers").length);
+    expect(portalLogin(store, "orders@lonestaraggregates.com", PORTAL_DEMO_PASSWORD, NOW).customer.id).toBe("cust-lsa");
+    expect(store.migrate(NOW)).toEqual([]);
+  });
+});

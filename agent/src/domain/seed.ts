@@ -72,6 +72,30 @@ const r2 = (n: number): number => Math.round(n * 100) / 100;
 
 export const PORTAL_DEMO_PASSWORD = "RPGportal!2026";
 
+/**
+ * One customer portal account per customer, for its ordering contact, with the
+ * shared demo password (documented in the README; real deployments reset it).
+ * Also used by the store's startup migration for databases created before
+ * portal accounts existed.
+ */
+export function buildPortalUsers(customers: Customer[], contacts: Contact[], createdAt: string): PortalUser[] {
+  return customers.flatMap((c) => {
+    const contact = contacts.find((x) => x.customerId === c.id && x.role === "ordering") ?? contacts.find((x) => x.customerId === c.id);
+    if (!contact) return [];
+    const salt = `portal-${c.id}`;
+    return [{
+      id: `pu-${c.code.toLowerCase()}`,
+      customerId: c.id,
+      email: contact.email.toLowerCase(),
+      name: contact.name,
+      passwordHash: scryptSync(PORTAL_DEMO_PASSWORD, salt, 64).toString("hex"),
+      salt,
+      status: "active" as const,
+      createdAt,
+    }];
+  });
+}
+
 export function buildSeed(now: Date = new Date()): OpsState {
   const rng = mulberry32(20260916);
   const dayIso = (offset: number): string => new Date(now.getTime() + offset * DAY).toISOString().slice(0, 10);
@@ -485,23 +509,7 @@ export function buildSeed(now: Date = new Date()): OpsState {
   const marginCtx = { bols, invoices, customerPrices, rackPrices, carrierRates, carriers, customers, deliveryLocations };
   const loadMargins = loads.map((l) => computeLoadMargin(l, marginCtx, now));
 
-  // ---- Customer portal accounts (Module G) ---------------------------------------
-  // One login per customer, for its ordering contact. The demo password is shared
-  // and documented in the README; real deployments reset it on first sign-in.
-  const portalUsers: PortalUser[] = customers.map((c) => {
-    const contact = contacts.find((x) => x.customerId === c.id && x.role === "ordering") ?? contacts.find((x) => x.customerId === c.id)!;
-    const salt = `portal-${c.id}`;
-    return {
-      id: `pu-${c.code.toLowerCase()}`,
-      customerId: c.id,
-      email: contact.email.toLowerCase(),
-      name: contact.name,
-      passwordHash: scryptSync(PORTAL_DEMO_PASSWORD, salt, 64).toString("hex"),
-      salt,
-      status: "active",
-      createdAt: hoursAgo(24 * 30),
-    };
-  });
+  const portalUsers = buildPortalUsers(customers, contacts, hoursAgo(24 * 30));
 
   const state: OpsState = {
     staff, customers, deliveryLocations, contacts, products, suppliers, terminals, carriers, carrierRates,

@@ -12,8 +12,9 @@ import type {
   Order,
   Product,
   Terminal,
+  Contact,
 } from "./types.js";
-import { buildSeed } from "./seed.js";
+import { buildPortalUsers, buildSeed } from "./seed.js";
 
 export const nowIso = (): string => new Date().toISOString();
 
@@ -25,6 +26,7 @@ export class OpsStore {
   constructor(db?: DatabaseSync) {
     this.docs = new DocStore(db ?? openDb(process.env.VITEST ? ":memory:" : undefined));
     this.seedIfEmpty();
+    this.migrate();
   }
 
   // ---- generic -----------------------------------------------------------
@@ -158,6 +160,21 @@ export class OpsStore {
   }
 
   // ---- seeding -------------------------------------------------------------
+
+  /**
+   * Bring an existing database up to the current shape. Runs at startup after
+   * seeding; each step is a no-op once applied.
+   */
+  migrate(now: Date = new Date()): string[] {
+    const applied: string[] = [];
+    if (this.all("portalUsers").length === 0 && this.all("customers").length > 0) {
+      const users = buildPortalUsers(this.all<Customer>("customers"), this.all<Contact>("contacts"), now.toISOString());
+      this.saveMany("portalUsers", users);
+      this.audit("system", "migration.portal_accounts", "system", "portalUsers", `Created ${users.length} customer portal account(s) for existing customers`);
+      applied.push("portal_accounts");
+    }
+    return applied;
+  }
 
   seedIfEmpty(): void {
     if (this.docs.count("customers") > 0) return;
