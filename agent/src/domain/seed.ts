@@ -1,3 +1,4 @@
+import { scryptSync } from "node:crypto";
 import type {
   AuditLogEntry,
   BillingStatus,
@@ -33,6 +34,7 @@ import type {
   Supplier,
   TaxRate,
   Terminal,
+  PortalUser,
 } from "./types.js";
 import { evaluatePrice } from "../pricing/engine.js";
 import type { PricingContext } from "../pricing/engine.js";
@@ -67,6 +69,8 @@ function mulberry32(seed: number): () => number {
 
 const r4 = (n: number): number => Math.round(n * 10000) / 10000;
 const r2 = (n: number): number => Math.round(n * 100) / 100;
+
+export const PORTAL_DEMO_PASSWORD = "RPGportal!2026";
 
 export function buildSeed(now: Date = new Date()): OpsState {
   const rng = mulberry32(20260916);
@@ -118,13 +122,13 @@ export function buildSeed(now: Date = new Date()): OpsState {
   ];
 
   const customers: Customer[] = [
-    { id: "cust-lsa", code: "LSA", name: "Lone Star Aggregates", industry: "Quarry / aggregates", billingBasis: "net", paymentTermsDays: 30, creditLimit: 150000, taxExempt: false, status: "active", portalToken: "lsa-7f3a9c", quickbooksCustomerId: "QB-114" },
-    { id: "cust-bcr", code: "BCR", name: "Brazos County Roads", industry: "Municipal", billingBasis: "gross", paymentTermsDays: 45, creditLimit: 250000, taxExempt: true, status: "active", portalToken: "bcr-2d81e0", quickbooksCustomerId: "QB-121" },
-    { id: "cust-ptf", code: "PTF", name: "Prairie Trucking Fleet", industry: "Trucking", billingBasis: "net", paymentTermsDays: 15, creditLimit: 100000, taxExempt: false, status: "active", portalToken: "ptf-91c4b7", quickbooksCustomerId: "QB-133" },
-    { id: "cust-gcf", code: "GCF", name: "Gulf Coast Farms Co-op", industry: "Agriculture", billingBasis: "gross", paymentTermsDays: 30, creditLimit: 80000, taxExempt: true, status: "active", portalToken: "gcf-55ab1d", quickbooksCustomerId: "QB-140" },
-    { id: "cust-qsm", code: "QSM", name: "QuickStop Markets", industry: "Convenience stores", billingBasis: "net", paymentTermsDays: 10, creditLimit: 200000, taxExempt: false, status: "active", portalToken: "qsm-c0ffee", quickbooksCustomerId: "QB-152" },
-    { id: "cust-hpr", code: "HPR", name: "Hill Peak Ready-Mix", industry: "Construction", billingBasis: "net", paymentTermsDays: 30, creditLimit: 60000, taxExempt: false, status: "on_hold", portalToken: "hpr-3e3e3e", notes: "Past due 62 days; hold new deliveries until payment." },
-    { id: "cust-trc", code: "TRC", name: "Trinity River Contractors", industry: "Construction", billingBasis: "net", paymentTermsDays: 30, creditLimit: 120000, taxExempt: false, status: "active", portalToken: "trc-8899aa", quickbooksCustomerId: "QB-160" },
+    { id: "cust-lsa", code: "LSA", name: "Lone Star Aggregates", industry: "Quarry / aggregates", billingBasis: "net", paymentTermsDays: 30, creditLimit: 150000, taxExempt: false, status: "active", quickbooksCustomerId: "QB-114" },
+    { id: "cust-bcr", code: "BCR", name: "Brazos County Roads", industry: "Municipal", billingBasis: "gross", paymentTermsDays: 45, creditLimit: 250000, taxExempt: true, status: "active", quickbooksCustomerId: "QB-121" },
+    { id: "cust-ptf", code: "PTF", name: "Prairie Trucking Fleet", industry: "Trucking", billingBasis: "net", paymentTermsDays: 15, creditLimit: 100000, taxExempt: false, status: "active", quickbooksCustomerId: "QB-133" },
+    { id: "cust-gcf", code: "GCF", name: "Gulf Coast Farms Co-op", industry: "Agriculture", billingBasis: "gross", paymentTermsDays: 30, creditLimit: 80000, taxExempt: true, status: "active", quickbooksCustomerId: "QB-140" },
+    { id: "cust-qsm", code: "QSM", name: "QuickStop Markets", industry: "Convenience stores", billingBasis: "net", paymentTermsDays: 10, creditLimit: 200000, taxExempt: false, status: "active", quickbooksCustomerId: "QB-152" },
+    { id: "cust-hpr", code: "HPR", name: "Hill Peak Ready-Mix", industry: "Construction", billingBasis: "net", paymentTermsDays: 30, creditLimit: 60000, taxExempt: false, status: "on_hold", notes: "Past due 62 days; hold new deliveries until payment." },
+    { id: "cust-trc", code: "TRC", name: "Trinity River Contractors", industry: "Construction", billingBasis: "net", paymentTermsDays: 30, creditLimit: 120000, taxExempt: false, status: "active", quickbooksCustomerId: "QB-160" },
   ];
 
   const deliveryLocations: DeliveryLocation[] = [
@@ -481,11 +485,29 @@ export function buildSeed(now: Date = new Date()): OpsState {
   const marginCtx = { bols, invoices, customerPrices, rackPrices, carrierRates, carriers, customers, deliveryLocations };
   const loadMargins = loads.map((l) => computeLoadMargin(l, marginCtx, now));
 
+  // ---- Customer portal accounts (Module G) ---------------------------------------
+  // One login per customer, for its ordering contact. The demo password is shared
+  // and documented in the README; real deployments reset it on first sign-in.
+  const portalUsers: PortalUser[] = customers.map((c) => {
+    const contact = contacts.find((x) => x.customerId === c.id && x.role === "ordering") ?? contacts.find((x) => x.customerId === c.id)!;
+    const salt = `portal-${c.id}`;
+    return {
+      id: `pu-${c.code.toLowerCase()}`,
+      customerId: c.id,
+      email: contact.email.toLowerCase(),
+      name: contact.name,
+      passwordHash: scryptSync(PORTAL_DEMO_PASSWORD, salt, 64).toString("hex"),
+      salt,
+      status: "active",
+      createdAt: hoursAgo(24 * 30),
+    };
+  });
+
   const state: OpsState = {
     staff, customers, deliveryLocations, contacts, products, suppliers, terminals, carriers, carrierRates,
     priceIndexes, indexPrices, rackPrices, pricingRules, customerPrices, forecasts,
     emailIntakes, orders, orderEvents, loads, loadEvents, bols, deliveries,
-    taxRates, invoices, payments, qbInvoices, loadMargins, exceptions: [], auditLog, integrationRuns,
+    taxRates, invoices, payments, qbInvoices, loadMargins, exceptions: [], auditLog, integrationRuns, portalUsers, portalSessions: [],
   };
   let exSeq = 0;
   const detected = detectExceptions(state, now, (req) => evaluatePrice(pricingCtx, req));

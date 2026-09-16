@@ -33,7 +33,6 @@ export interface Customer {
   taxExempt: boolean;
   status: CustomerStatus;
   /** Opaque token that scopes the customer portal (MVP stand-in for portal auth). */
-  portalToken: string;
   quickbooksCustomerId?: string;
   notes?: string;
 }
@@ -57,6 +56,29 @@ export interface Contact {
   email: string;
   phone?: string;
   role: "ordering" | "billing" | "receiving";
+}
+
+/** A customer-side login for the portal (Module G). Passwords are scrypt hashes. */
+export interface PortalUser {
+  id: string;
+  customerId: string;
+  email: string;
+  name: string;
+  passwordHash: string;
+  salt: string;
+  status: "active" | "disabled";
+  createdAt: string;
+  lastLoginAt?: string;
+}
+
+/** A signed-in portal browser session; the id is the bearer token (never sent to the staff UI). */
+export interface PortalSession {
+  id: string;
+  portalUserId: string;
+  customerId: string;
+  createdAt: string;
+  expiresAt: string;
+  lastSeenAt: string;
 }
 
 export type ProductCategory = "diesel" | "gasoline" | "ethanol_blend" | "def";
@@ -257,6 +279,19 @@ export interface ParsedOrder {
   specialInstructions?: string;
   /** 0..1 per extracted field. */
   fieldConfidence: Record<string, number>;
+  /** Set when the draft came from an attachment rather than the email body. */
+  source?: { attachment: string; row?: number };
+}
+
+/** What intake did with one email attachment. */
+export interface IntakeAttachment {
+  filename: string;
+  contentType: string;
+  bytes: number;
+  status: "parsed" | "unsupported" | "error";
+  /** Draft orders produced from this attachment. */
+  drafts: number;
+  note?: string;
 }
 
 export type IntakeReviewStatus = "pending" | "approved" | "rejected" | "duplicate";
@@ -268,6 +303,8 @@ export interface EmailIntake {
   from: string;
   subject: string;
   body: string;
+  /** Attachments on the email and whether each was parsed (CSV, XLSX, PDF, text). */
+  attachments?: IntakeAttachment[];
   parsed: ParsedOrder;
   /** Overall confidence 0..1. */
   confidence: number;
@@ -615,6 +652,8 @@ export interface OpsState {
   exceptions: OpsException[];
   auditLog: AuditLogEntry[];
   integrationRuns: IntegrationRun[];
+  portalUsers: PortalUser[];
+  portalSessions: PortalSession[];
 }
 
 export const COLLECTIONS = [
@@ -648,6 +687,8 @@ export const COLLECTIONS = [
   "exceptions",
   "auditLog",
   "integrationRuns",
+  "portalUsers",
+  "portalSessions",
 ] as const;
 
 export type Collection = (typeof COLLECTIONS)[number];

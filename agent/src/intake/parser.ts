@@ -193,6 +193,28 @@ export function parseOrderEmail(
   return parsed;
 }
 
+/**
+ * Fill the fields an attachment draft is missing from the email body's draft
+ * (a PO attachment rarely repeats the "call the gate first" note in the body).
+ */
+export function mergeParsed(primary: ParsedOrder, fallback: ParsedOrder): ParsedOrder {
+  const out: ParsedOrder = { ...primary, fieldConfidence: { ...primary.fieldConfidence } };
+  const fill = (key: keyof ParsedOrder, confKey: string, idKey?: keyof ParsedOrder) => {
+    if (out[key] !== undefined || fallback[key] === undefined) return;
+    (out as unknown as Record<string, unknown>)[key] = fallback[key];
+    if (idKey && fallback[idKey] !== undefined) (out as unknown as Record<string, unknown>)[idKey] = fallback[idKey];
+    if (fallback.fieldConfidence[confKey] !== undefined) out.fieldConfidence[confKey] = fallback.fieldConfidence[confKey];
+  };
+  fill("customerId", "customer", "customerName");
+  fill("deliveryLocationId", "location", "deliveryLocationName");
+  fill("productId", "product", "productName");
+  fill("gallons", "gallons");
+  fill("requestedDate", "date");
+  fill("customerPo", "po");
+  fill("specialInstructions", "notes");
+  return out;
+}
+
 /** Mean confidence over the five required fields. */
 export function overallConfidence(p: ParsedOrder): number {
   const keys = ["customer", "location", "product", "gallons", "date"];

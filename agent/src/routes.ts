@@ -10,6 +10,7 @@ import { createLoadForOrder, ingestBol, matchBolToLoad, pullBolFeed, recordDeliv
 import { approveInvoice, prepareInvoices, rejectInvoice, syncInvoicesToQuickBooks, syncPaymentsFromQuickBooks } from "./services/billing.js";
 import { acknowledgeException, resolveException, triageExceptions } from "./services/controls.js";
 import { recomputeAll } from "./services/context.js";
+import { portalData, portalLogin, portalLogout, portalSessionFor } from "./services/portal.js";
 import { DEFAULT_ACTOR } from "./services/actor.js";
 
 /**
@@ -26,9 +27,9 @@ function actorOf(req: Request): string {
 }
 
 function wrap(fn: Handler): Handler {
-  return (req, res) => {
+  return async (req, res) => {
     try {
-      const out = fn(req, res);
+      const out = await fn(req, res);
       if (out !== undefined && !res.headersSent) res.json(out);
     } catch (e) {
       const message = (e as Error).message;
@@ -124,46 +125,34 @@ export function registerOpsRoutes(app: Express): void {
   }));
 
   // Customer portal (Module G): scoped by the customer's portal token; no pricing internals.
-  app.get("/portal/:token", wrap((req, res) => {
-    const customer = ops.all<Customer>("customers").find((c) => c.portalToken === String(req.params.token));
-    if (!customer) {
-      res.status(404).json({ error: "portal link not found" });
+  // ---- Customer portal (Module G): email + password sign-in, customer-scoped data ----
+  const bearer = (req: Request): string | undefined => {
+    const h = req.header("authorization") ?? "";
+    return h.toLowerCase().startsWith("bearer ") ? h.slice(7).trim() : undefined;
+  };
+
+  app.post("/portal/login", json, wrap((req, res) => {
+    const { email, password } = (req.body ?? {}) as { email?: string; password?: string };
+    try {
+      return portalLogin(ops, String(email ?? ""), String(password ?? ""));
+    } catch (e) {
+      res.status(401).json({ error: (e as Error).message });
       return undefined;
     }
-    const orders = ops.all<Order>("orders").filter((o) => o.customerId === customer.id);
-    const loads = ops.all<Load>("loads").filter((l) => l.customerId === customer.id);
-    const invoices = ops.all<Invoice>("invoices").filter((i) => i.customerId === customer.id && !["draft", "pending_approval", "void"].includes(i.status));
-    const products = ops.all<{ id: string; name: string }>("products");
-    const locations = ops.all<{ id: string; customerId: string; name: string; city: string; state: string }>("deliveryLocations").filter((l) => l.customerId === customer.id);
-    const carriers = ops.all<{ id: string; name: string }>("carriers");
-    const events = ops.all<{ id: string; orderId: string; to: string; occurredAt: string }>("orderEvents");
-    const deliveries = ops.all<{ id: string; loadId: string; deliveredAt: string; deliveredGallons: number; ticketNumber: string }>("deliveries");
+  }));
+
+  app.get("/portal/me", wrap((req, res) => {
+    const identity = portalSessionFor(ops, bearer(req));
+    if (!identity) {
+      res.status(401).json({ error: "Please sign in." });
+      return undefined;
+    }
     return {
-      customer: { id: customer.id, name: customer.name, code: customer.code, paymentTermsDays: customer.paymentTermsDays },
-      locations,
-      orders: orders
-        .sort((a, b) => b.requestedDate.localeCompare(a.requestedDate))
-        .map((o) => {
-          const load = loads.find((l) => l.orderIds.includes(o.id));
-          const delivery = load ? deliveries.find((d) => d.loadId === load.id) : undefined;
-          return {
-            id: o.id,
-            orderNumber: o.orderNumber,
-            product: products.find((p) => p.id === o.productId)?.name ?? o.productId,
-            gallons: o.requestedGallons,
-            requestedDate: o.requestedDate,
-            customerPo: o.customerPo,
-            location: locations.find((l) => l.id === o.deliveryLocationId)?.name ?? "",
-            status: o.status,
-            milestones: events.filter((e) => e.orderId === o.id).map((e) => ({ status: e.to, at: e.occurredAt })),
-            carrier: load ? carriers.find((c) => c.id === load.carrierId)?.name : undefined,
-            scheduledDeliveryAt: load?.scheduledDeliveryAt,
-            deliveredAt: delivery?.deliveredAt,
-            deliveredGallons: delivery?.deliveredGallons,
-            ticketNumber: delivery?.ticketNumber,
-          };
-        }),
-      invoices: invoices.map((i) => ({ invoiceNumber: i.invoiceNumber, issueDate: i.issueDate, dueDate: i.dueDate, total: i.total, status: i.status })),
+      ...portalData(ops, identity.customer.id),
+      user: { id: identity.user.id, name: identity.user.name, email: identity.user.email },
+      session: { expiresAt: identity.session.expiresAt },
     };
   }));
+
+  app.post("/portal/logout", wrap((req) => ({ ok: portalLogout(ops, bearer(req)) })));
 }

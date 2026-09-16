@@ -1,5 +1,5 @@
 {
-  "_readme": "Sample inbound order emails for Module H. Date tokens like {{DATE+1}} are replaced with real dates relative to today when the intake job runs, so the sample stays current.",
+  "_readme": "Sample inbound order emails for Module H. Date tokens like {{DATE+1}} are replaced with real dates relative to today when the intake job runs, so the sample stays current. Attachments reference files under samples/attachments (CSV, XLSX, PDF); a mailbox connector would pass contentBase64 instead.",
   "emails": [
     {
       "messageId": "<ord-4488@lonestaraggregates.com>",
@@ -20,7 +20,14 @@
       "receivedAtOffsetHours": -4,
       "from": "dispatch@prairietrucking.com",
       "subject": "diesel for the yard",
-      "body": "Morning - can we get 6500 gallons of diesel to our Fort Worth yard on {{DATE+2}}? Same as last time. Reference PTF-0915.\n\n- Dale"
+      "body": "Morning - can we get 6500 gallons of diesel to our Fort Worth yard on {{DATE+2}}? Same as last time. Reference PTF-0915.\n\n- Dale",
+      "attachments": [
+        {
+          "filename": "yard-tank.jpg",
+          "contentType": "image/jpeg",
+          "text": ""
+        }
+      ]
     },
     {
       "messageId": "<gcf-2210@gulfcoastfarms.coop>",
@@ -42,6 +49,48 @@
       "from": "orders@lonestaraggregates.com",
       "subject": "RE: Fuel order - Pit 4 - PO LSA-4488",
       "body": "Resending in case the first one did not go through.\n\nCustomer: Lone Star Aggregates\nLocation: Pit 4 - Ennis, TX\nProduct: Dyed ULSD\nGallons: 7,500\nRequested date: {{DATE+1}}\nPO: LSA-4488"
+    },
+    {
+      "messageId": "<sched-0911@prairietrucking.com>",
+      "receivedAtOffsetHours": -5,
+      "from": "dispatch@prairietrucking.com",
+      "subject": "Fuel schedule for the week (attached)",
+      "body": "Dale here. This week's diesel and DEF drops are in the attached schedule, same yard as always.\n\nThanks,\nDale Kirk",
+      "attachments": [
+        {
+          "filename": "fuel-schedule.csv",
+          "contentType": "text/csv",
+          "file": "attachments/fuel-schedule.csv"
+        }
+      ]
+    },
+    {
+      "messageId": "<po-5591@trinityriverco.example>",
+      "receivedAtOffsetHours": -3,
+      "from": "agrant@trinityriverco.example",
+      "subject": "PO TRC-5591 attached",
+      "body": "Please see the attached purchase order for the Dallas yard.\n\nAlicia Grant\nTrinity River Contractors",
+      "attachments": [
+        {
+          "filename": "PO-TRC-5591.pdf",
+          "contentType": "application/pdf",
+          "file": "attachments/PO-TRC-5591.pdf"
+        }
+      ]
+    },
+    {
+      "messageId": "<stores-0916@quickstopmarkets.com>",
+      "receivedAtOffsetHours": -2,
+      "from": "fuel@quickstopmarkets.com",
+      "subject": "Store orders - spreadsheet attached",
+      "body": "Two stores this time, details in the sheet.\n\nTom Alvarez\nQuickStop Markets",
+      "attachments": [
+        {
+          "filename": "store-fuel-orders.xlsx",
+          "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "file": "attachments/store-fuel-orders.xlsx"
+        }
+      ]
     }
   ]
 }

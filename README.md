@@ -37,9 +37,9 @@ model in [RPG_DATA_MODEL.md](./RPG_DATA_MODEL.md) and the build plan in
 | C. Fuel market tracker          | `/market`                         | Index history (OPIS, NYMEX), sample feed refresh, next-day direction forecast with a backtested hit rate                                                                     |
 | D. Billing & invoicing          | `/billing`                        | Billing board (BOL Received → Pricing Verified → Ready to Invoice → Invoiced → Paid), invoice builder (net or gross gallons, taxes, freight, fees), management approval gate, QuickBooks sync and payment import (mock) |
 | E. Load & BOL management        | `/loads`, `/bols`                 | Dispatch board with drag-to-advance statuses, delivery tickets, BOL feed ingestion with duplicate detection and automatic load matching, manual match for the rest          |
-| F. Customer portal              | `/portal/<token>`                 | Read-only order timeline, deliveries, and invoices for one customer                                                                                                        |
+| F. Customer portal              | `/portal`                         | Customer sign-in (email + password, httpOnly session cookie, lockout after repeated failures), then a read-only order timeline, deliveries, and invoices scoped to that customer |
 | G. Orders                       | `/orders`                         | Manual order entry, milestone tracking (Received → Confirmed → Carrier Confirmed → In Transit → Delivered), credit holds and release                                        |
-| H. Email order intake           | `/orders` → Intake queue          | Sample inbox parsed into draft orders with a confidence score and issues, human review and approval                                                                        |
+| H. Email order intake           | `/orders` → Intake queue          | Sample inbox parsed into draft orders with a confidence score and issues; attachments too (CSV and Excel order sheets become one draft per row, PDF purchase orders one draft); human review and approval |
 | I. Management dashboard         | `/`                               | Gallons, revenue, gross profit, orders in progress, loads awaiting billing, invoices to approve, exceptions, market movement, customer profitability                       |
 | J. Exceptions                   | `/exceptions`                     | Rule-based checkpoints (missing BOL, unpriced order, low margin, gallons variance, overdue invoice, ...) with triage, acknowledge, and resolve                             |
 
@@ -73,7 +73,7 @@ The copilot can also open pages and drawers (`navigate_to`, `focus_order`,
 `focus_load`). After any change it pushes a fresh snapshot to the UI, so boards and
 badges update without a reload.
 
-There is no sign-in yet (see [AUTH_PLAN.md](./AUTH_PLAN.md)). The **acting user**
+Staff sign-in is not built yet (see [AUTH_PLAN.md](./AUTH_PLAN.md)); customers do sign in to the portal. The **acting user**
 dropdown in the top bar stands in for a session; roles gate approvals (for
 example, only management can approve an invoice).
 
@@ -89,7 +89,7 @@ example, only management can approve an invoice).
 
 | Integration          | Sample file                                                                | Triggered by                                                        | Real integration would plug into                    |
 | -------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------- |
-| Order inbox (email)  | `agent/samples/emails.json`                                                | "Run email intake" (Orders page, copilot) or `POST /ops/intake/run` | `agent/src/services/orders.ts` → `runEmailIntake`   |
+| Order inbox (email)  | `agent/samples/emails.json` + `agent/samples/attachments/` (CSV, XLSX, PDF) | "Run email intake" (Orders page, copilot) or `POST /ops/intake/run` | `agent/src/services/orders.ts` → `runEmailIntake`; attachment bytes go through `agent/src/intake/attachments.ts` |
 | Supplier BOL feed    | `agent/samples/bol-feed.json`                                              | "Pull BOL feed" (Loads / BOLs pages, copilot) or `POST /ops/bols/pull` | `agent/src/services/loads.ts` → `pullBolFeed`    |
 | Market index feed    | `agent/samples/index-feed.json`                                            | "Refresh feed" (Market page, copilot) or `POST /ops/market/refresh` | `agent/src/services/market.ts` → `refreshIndexFeed` |
 | QuickBooks Online    | `agent/samples/quickbooks-invoice-template.json`, `quickbooks-payments.json` | "Sync QuickBooks" (Billing page, copilot) or `POST /ops/quickbooks/sync-invoices` and `sync-payments` | `agent/src/integrations/quickbooks/mock.ts` |
@@ -172,9 +172,12 @@ Prefer two terminals? Run `npm --prefix agent run dev` and `npm --prefix fronten
 
 1. **Dashboard** (`/`): today's numbers, 14-day gallons, market movement, and what
    needs attention. The copilot pills on the right run the same flows from chat.
-2. **Intake**: on Orders & Intake press **Run email intake**. Eight sample emails
-   are parsed; open the queue, fix the one with no matching customer, approve the
-   rest. Each approval becomes an order.
+2. **Intake**: on Orders & Intake press **Run email intake**. Nine sample emails
+   are parsed into twelve drafts: six from email bodies, three rows from an
+   attached CSV schedule, two rows from an attached Excel sheet, and one from an
+   attached PDF purchase order (an attached photo is recorded as unsupported).
+   Open the queue, fix the one with no matching customer, approve the rest. Each
+   approval becomes an order.
 3. **Pricing**: ask the copilot *"What's today's price for Lone Star Aggregates on
    ULSD, 7,500 gallons?"* and compare with the price board. Add a rack price or a
    rule and watch the board recalculate.
@@ -189,7 +192,10 @@ Prefer two terminals? Run `npm --prefix agent run dev` and `npm --prefix fronten
    and the sample payments are applied.
 7. **Exceptions**: the low-margin load, the missing BOL, and the unpriced order show
    up here (and in the daily brief). Resolve one with a note.
-8. **Portal**: open `/portal/lsa-7f3a9c` to see what Lone Star Aggregates sees.
+8. **Portal**: open `/portal/login` and sign in as `orders@lonestaraggregates.com`
+   with the demo password `RPGportal!2026` to see what Lone Star Aggregates sees.
+   Every customer has one seeded account (its ordering contact, same demo
+   password); the Customers page shows the account and last sign-in.
 9. **Market**: refresh the feed and run the forecast; the hit rate comes from a
    backtest over the stored history.
 10. **Reports**: profitability by customer and by load, expected vs actual.
@@ -219,7 +225,7 @@ acting user in the `x-actor-id` header.
 | POST   | `/ops/quickbooks/sync-invoices`, `/ops/quickbooks/sync-payments` | QuickBooks (mock)             |
 | GET    | `/ops/exceptions/triage`, POST `/ops/exceptions/:id/resolve`, `/ops/exceptions/:id/acknowledge` | Exceptions |
 | POST   | `/ops/admin/reseed`                                | Reset demo data (admin)                     |
-| GET    | `/portal/:token`                                   | Customer portal data                        |
+| POST   | `/portal/login`, `/portal/logout`; GET `/portal/me` (Bearer) | Customer portal sign-in and data      |
 
 ## Tests and checks
 

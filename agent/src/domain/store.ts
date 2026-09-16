@@ -84,6 +84,9 @@ export class OpsStore {
       indexPrices: s.indexPrices.filter((p) => p.date >= indexSince),
       customerPrices: s.customerPrices.slice(-200),
       auditLog: s.auditLog.slice(-150),
+      // Staff can see who has a portal account, never the credentials or sessions.
+      portalUsers: s.portalUsers.map((u) => ({ ...u, passwordHash: "", salt: "" })),
+      portalSessions: [],
     };
   }
 

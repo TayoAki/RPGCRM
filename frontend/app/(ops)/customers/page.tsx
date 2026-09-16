@@ -4,7 +4,7 @@ import { useOpsContext } from "@/components/ops-context";
 import { Page, PageHeader, DataTable, StatusBadge, SectionCard, KV } from "@/components/ops/primitives";
 import { Button } from "@/components/ui/button";
 import { NewOrderSheet } from "@/components/forms/NewOrderSheet";
-import { CUSTOMER_STATUS_STYLE, fmtDate, gal, INVOICE_STATUS_STYLE, isOpenOrder, money, orderStatusLabel, ORDER_STATUS_STYLE, ppg, productName, titleCase } from "@/lib/ops";
+import { CUSTOMER_STATUS_STYLE, fmtDate, gal, INVOICE_STATUS_STYLE, isOpenOrder, money, orderStatusLabel, ORDER_STATUS_STYLE, ppg, productName, titleCase, relativeTime } from "@/lib/ops";
 
 export default function CustomersPage() {
   const { state, setSelectedOrderId } = useOpsContext();
@@ -43,8 +43,8 @@ export default function CustomersPage() {
                   <KV label="30-day profit">{money(gp)} · {gallons ? ppg(gp / gallons) : "—"}</KV>
                   {c.notes ? <div className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-900">{c.notes}</div> : null}
                   <div className="pt-1 text-xs">
-                    <span className="text-muted-foreground">Portal link: </span>
-                    <a className="text-primary hover:underline" href={`/portal/${c.portalToken}`} target="_blank" rel="noreferrer">/portal/{c.portalToken}</a>
+                    <span className="text-muted-foreground">Portal account: </span>
+                    {(() => { const u = state.portalUsers.find((x) => x.customerId === c.id); return u ? <span>{u.email} <span className="text-muted-foreground">· {u.lastLoginAt ? `last sign-in ${relativeTime(u.lastLoginAt)}` : "never signed in"}</span></span> : <span className="text-muted-foreground">none</span>; })()}
                   </div>
                 </div>
               </SectionCard>

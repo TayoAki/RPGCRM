@@ -1,0 +1,4 @@
+customer,location,product,gallons,requested date,po,notes
+Prairie Trucking Fleet,Fort Worth Yard,ULSD,6500,{{DATE+1}},PTF-0911,Fill both saddle tanks
+Prairie Trucking Fleet,Fort Worth Yard,ULSD,6500,{{DATE+3}},PTF-0912,
+Prairie Trucking Fleet,Fort Worth Yard,DEF,500,{{DATE+3}},PTF-0913,Bulk DEF tote

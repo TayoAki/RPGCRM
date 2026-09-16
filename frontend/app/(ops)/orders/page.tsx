@@ -9,6 +9,7 @@ import type { EmailIntake, Order, ParsedOrder } from "@/lib/domain";
 import { ORDER_STATUSES } from "@/lib/domain";
 import { customerName, fmtDate, gal, isOpenOrder, loadForOrder, locationName, orderStatusLabel, ORDER_STATUS_STYLE, productName, relativeTime, staffName, fmtDateTime } from "@/lib/ops";
 import { cn } from "@/lib/utils";
+import { Paperclip } from "lucide-react";
 
 function IntakeCard({ intake }: { intake: EmailIntake }) {
   const { state, act, busy } = useOpsContext();
@@ -24,6 +25,17 @@ function IntakeCard({ intake }: { intake: EmailIntake }) {
         <div className="min-w-0">
           <div className="font-medium">{intake.subject}</div>
           <div className="text-xs text-muted-foreground">{intake.from} · {relativeTime(intake.receivedAt)}</div>
+          {intake.attachments?.length ? (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {intake.attachments.map((a) => (
+                <span key={a.filename} title={a.note ?? a.contentType} className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]", a.status === "parsed" ? "bg-accent text-accent-foreground" : "bg-secondary text-muted-foreground")}>
+                  <Paperclip className="h-3 w-3" />{a.filename}
+                  <span className="text-muted-foreground">· {a.status === "parsed" ? `${a.drafts} order${a.drafts === 1 ? "" : "s"}` : a.status === "error" ? "could not read" : "not parsed"}</span>
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {intake.parsed.source ? <div className="mt-1 text-xs text-brand-blue">Order details read from {intake.parsed.source.attachment}{intake.parsed.source.row ? `, row ${intake.parsed.source.row}` : ""}</div> : null}
         </div>
         <div className="flex items-center gap-2 text-xs">
           <span className="text-muted-foreground">Confidence</span>

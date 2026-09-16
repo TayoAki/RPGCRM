@@ -64,13 +64,14 @@ describe("email parser", () => {
 });
 
 describe("intake service", () => {
-  it("queues sample emails once, flags issues, and approves into an order", () => {
+  it("queues sample emails once, flags issues, and approves into an order", async () => {
     const store = freshStore();
-    const first = runEmailIntake(store, NOW);
-    expect(first.queued.length).toBe(6);
-    const again = runEmailIntake(store, NOW);
+    const first = await runEmailIntake(store, NOW);
+    // 6 body-only drafts plus 3 CSV rows, 1 PDF purchase order, and 2 spreadsheet rows.
+    expect(first.queued.length).toBe(12);
+    const again = await runEmailIntake(store, NOW);
     expect(again.queued.length).toBe(0);
-    expect(again.skipped).toBe(6);
+    expect(again.skipped).toBe(9);
     const dup = first.queued.find((e) => e.subject.startsWith("RE:"))!;
     expect(dup.issues.join(" ")).toContain("already in the review queue");
     const unknown = first.queued.find((e) => e.from.includes("bayou"))!;

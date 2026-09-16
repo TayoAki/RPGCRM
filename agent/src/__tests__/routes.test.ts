@@ -3,6 +3,7 @@ import express from "express";
 import request from "supertest";
 import { registerOpsRoutes } from "../routes.js";
 import { ops } from "../domain/store.js";
+import { PORTAL_DEMO_PASSWORD } from "../domain/seed.js";
 
 function app() {
   const a = express();
@@ -59,13 +60,29 @@ describe("ops REST routes", () => {
     expect(res.status).toBe(404);
   });
 
-  it("portal is scoped by token and hides pricing", async () => {
-    const res = await request(app()).get("/portal/qsm-c0ffee");
-    expect(res.status).toBe(200);
-    expect(res.body.customer.code).toBe("QSM");
-    expect(res.body.orders.every((o: any) => o.orderNumber.startsWith("ORD-"))).toBe(true);
-    expect(JSON.stringify(res.body)).not.toContain("differential");
-    const bad = await request(app()).get("/portal/nope");
-    expect(bad.status).toBe(404);
+  it("portal sign-in issues a session and scopes /portal/me to that customer without pricing", async () => {
+    const bad = await request(app()).post("/portal/login").send({ email: "fuel@quickstopmarkets.com", password: "wrong" });
+    expect(bad.status).toBe(401);
+    expect(bad.body.error).toMatch(/Invalid email or password/);
+    const login = await request(app()).post("/portal/login").send({ email: "fuel@quickstopmarkets.com", password: PORTAL_DEMO_PASSWORD });
+    expect(login.status).toBe(200);
+    expect(login.body.customer.code).toBe("QSM");
+    const me = await request(app()).get("/portal/me").set("Authorization", `Bearer ${login.body.token}`);
+    expect(me.status).toBe(200);
+    expect(me.body.customer.code).toBe("QSM");
+    expect(me.body.user.email).toBe("fuel@quickstopmarkets.com");
+    expect(me.body.orders.length).toBeGreaterThan(0);
+    expect(me.body.orders.every((o: { location: string }) => o.location.startsWith("Store"))).toBe(true);
+    expect(JSON.stringify(me.body)).not.toMatch(/pricePerGallon|rackPrice|supplierCost/);
+    const anon = await request(app()).get("/portal/me");
+    expect(anon.status).toBe(401);
+    const forged = await request(app()).get("/portal/me").set("Authorization", "Bearer not-a-real-token");
+    expect(forged.status).toBe(401);
+    const out = await request(app()).post("/portal/logout").set("Authorization", `Bearer ${login.body.token}`);
+    expect(out.body.ok).toBe(true);
+    const after = await request(app()).get("/portal/me").set("Authorization", `Bearer ${login.body.token}`);
+    expect(after.status).toBe(401);
+    const legacy = await request(app()).get("/portal/qsm-c0ffee");
+    expect(legacy.status).toBe(404);
   });
 });

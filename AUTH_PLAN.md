@@ -9,6 +9,30 @@ in [SAAS_AUDIT.md](./SAAS_AUDIT.md) Phase 1 alongside the Postgres move.
 
 ---
 
+## 0. Status update: customer portal accounts are built
+
+The customer-facing half of this plan shipped ahead of the staff half. The
+portal (Module G) now has email + password accounts instead of per-customer
+token links:
+
+- Accounts live in the agent store (`portalUsers`, one per customer, seeded for
+  the ordering contact; passwords are scrypt hashes with per-user salts).
+- Sign-in issues an opaque 32-byte session token stored server-side
+  (`portalSessions`, 7-day life, last-seen tracking, expired sessions purged).
+  The Next.js route `/api/portal/login` keeps the token in an httpOnly,
+  SameSite=Lax cookie (Secure in production); the browser never handles it.
+- Five failed attempts lock an email for 15 minutes; failures return one
+  generic message so accounts cannot be enumerated.
+- `/portal/me` resolves the session and returns only that customer's orders,
+  deliveries, and invoices. The staff snapshot exposes portal accounts with
+  credentials blanked and never includes sessions.
+- Old `/portal/<token>` links redirect to `/portal/login`.
+
+Still open for the portal: self-service password reset (today: sales resets it),
+invitations from the Customers page, and moving the lockout counter out of
+process memory when the agent runs more than one replica. Staff sign-in
+(Phases 1 to 4 below) is unchanged and still the recommended next step.
+
 ## 1. Where we are
 
 Today the deployed app has no authentication at all:

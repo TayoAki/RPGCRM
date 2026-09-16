@@ -129,7 +129,7 @@ export function CustomerCard({ r, status, onOpen, onOpenOrder }: { r?: CustomerR
 
 // ---- run_email_intake / list_intake_queue ------------------------------------------------
 export interface IntakeResult { summary?: string; queued?: IntakeItem[]; pending?: IntakeItem[] }
-interface IntakeItem { id: string; from: string; subject: string; confidence: number; issues: string[]; reviewStatus: string; parsed: { customerName?: string; deliveryLocationName?: string; productName?: string; gallons?: number; requestedDate?: string; customerPo?: string } }
+interface IntakeItem { id: string; from: string; subject: string; confidence: number; issues: string[]; reviewStatus: string; attachments?: { filename: string; status: string; drafts: number }[]; parsed: { customerName?: string; deliveryLocationName?: string; productName?: string; gallons?: number; requestedDate?: string; customerPo?: string; source?: { attachment: string; row?: number } } }
 export function IntakeQueueCard({ r, status, onOpen, onAsk }: { r?: IntakeResult; status: string; onOpen: () => void; onAsk: (m: string) => void }) {
   const items = r?.queued ?? r?.pending ?? [];
   return (
@@ -141,6 +141,7 @@ export function IntakeQueueCard({ r, status, onOpen, onAsk }: { r?: IntakeResult
             <div key={i.id} className="rounded-lg border border-border p-2">
               <div className="flex items-center justify-between gap-2 text-xs"><span className="font-medium">{i.id} · {i.parsed.customerName ?? "unknown customer"}</span><span className="tabular-nums text-muted-foreground">{Math.round(i.confidence * 100)}%</span></div>
               <div className="text-xs text-muted-foreground">{i.parsed.gallons?.toLocaleString() ?? "?"} gal {i.parsed.productName ?? "?"} → {i.parsed.deliveryLocationName ?? "?"} on {i.parsed.requestedDate ?? "?"}{i.parsed.customerPo ? ` · PO ${i.parsed.customerPo}` : ""}</div>
+              {i.parsed.source ? <div className="text-xs text-brand-blue">📎 from {i.parsed.source.attachment}{i.parsed.source.row ? ` row ${i.parsed.source.row}` : ""}</div> : i.attachments?.length ? <div className="text-xs text-muted-foreground">📎 {i.attachments.map((a) => `${a.filename} (${a.status === "parsed" ? `${a.drafts} order${a.drafts === 1 ? "" : "s"}` : "not parsed"})`).join(", ")}</div> : null}
               {i.issues.length ? <div className="text-xs text-[color:var(--risk-medium)]">⚠ {i.issues.join("; ")}</div> : null}
               {i.reviewStatus === "pending" ? <div className="mt-1 flex gap-3 text-xs"><button type="button" className="text-primary hover:underline" onClick={() => onAsk(`Approve intake ${i.id}`)}>Approve…</button><button type="button" className="text-muted-foreground hover:underline" onClick={() => onAsk(`Reject intake ${i.id}`)}>Reject</button></div> : null}
             </div>

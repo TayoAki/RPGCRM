@@ -17,6 +17,7 @@ export const EMPTY_STATE: OpsState = {
   priceIndexes: [], indexPrices: [], rackPrices: [], pricingRules: [], customerPrices: [], forecasts: [],
   emailIntakes: [], orders: [], orderEvents: [], loads: [], loadEvents: [], bols: [], deliveries: [],
   taxRates: [], invoices: [], payments: [], qbInvoices: [], loadMargins: [], exceptions: [], auditLog: [], integrationRuns: [],
+  portalUsers: [], portalSessions: [],
 };
 
 export function isOpsState(s: unknown): s is OpsState {

@@ -35,6 +35,7 @@ const intakeView = (e: EmailIntake) => ({
   issues: e.issues,
   reviewStatus: e.reviewStatus,
   parsed: e.parsed,
+  attachments: e.attachments ?? [],
   orderId: e.orderId ?? null,
 });
 
@@ -44,8 +45,8 @@ export const runEmailIntakeTool = tool({
   name: "run_email_intake",
   description: "Pull the order inbox (sample data in this MVP), parse each email into a draft order, and queue it for human review. Returns what was queued with confidence and issues. Nothing becomes an order until someone approves it.",
   inputSchema: z.object({}),
-  callback: () => {
-    const r = runEmailIntake(ops);
+  callback: async () => {
+    const r = await runEmailIntake(ops);
     return { summary: r.run.summary, skipped: r.skipped, queued: r.queued.map(intakeView) } as unknown as JSONValue;
   },
 });

@@ -1,4 +1,6 @@
 import type { OpsStore } from "../domain/store.js";
+import { attachmentBytes, extractAttachment, rowToLabeledText } from "../intake/attachments.js";
+import type { AttachmentInput } from "../intake/attachments.js";
 import type {
   Contact,
   Customer,
@@ -10,14 +12,16 @@ import type {
   OrderStatusEvent,
   ParsedOrder,
   Product,
+  IntakeAttachment,
 } from "../domain/types.js";
 import { ORDER_STATUSES } from "../domain/types.js";
-import { overallConfidence, parseOrderEmail } from "../intake/parser.js";
-import { loadSample } from "../samples/loader.js";
+import { mergeParsed, overallConfidence, parseOrderEmail } from "../intake/parser.js";
+import { loadSample, resolveTokens } from "../samples/loader.js";
 import { quotePrice } from "./pricing.js";
 import { recomputeExceptions, SYSTEM_ACTOR } from "./context.js";
 
 interface SampleEmail {
+  attachments?: AttachmentInput[];
   messageId: string;
   receivedAtOffsetHours: number;
   from: string;
@@ -26,7 +30,7 @@ interface SampleEmail {
 }
 
 /** Module H: pull the inbox (sample file), parse each email, queue for review. */
-export function runEmailIntake(store: OpsStore, now: Date = new Date()): { run: IntegrationRun; queued: EmailIntake[]; skipped: number } {
+export async function runEmailIntake(store: OpsStore, now: Date = new Date()): Promise<{ run: IntegrationRun; queued: EmailIntake[]; skipped: number }> {
   const startedAt = now.toISOString();
   const file = loadSample<{ emails: SampleEmail[] }>("emails.json", now);
   const existing = new Set(store.all<EmailIntake>("emailIntakes").map((e) => e.messageId));
@@ -38,26 +42,68 @@ export function runEmailIntake(store: OpsStore, now: Date = new Date()): { run: 
   };
   const queued: EmailIntake[] = [];
   let skipped = 0;
+  let emailsParsed = 0;
+  let fromAttachments = 0;
   for (const em of file.emails) {
     if (existing.has(em.messageId)) {
       skipped++;
       continue;
     }
-    const parsed = parseOrderEmail(em, ref, now);
-    const intake: EmailIntake = {
-      id: store.nextId("emailIntakes", "ei-"),
-      messageId: em.messageId,
-      receivedAt: new Date(now.getTime() + em.receivedAtOffsetHours * 3_600_000).toISOString(),
-      from: em.from,
-      subject: em.subject,
-      body: em.body,
-      parsed,
-      confidence: overallConfidence(parsed),
-      issues: intakeIssues(store, parsed, queued),
-      reviewStatus: "pending",
-    };
-    store.save("emailIntakes", intake);
-    queued.push(intake);
+    const bodyDraft = parseOrderEmail(em, ref, now);
+    // Attachments: spreadsheets give one draft per row, documents one draft; the body fills gaps.
+    const attachments: IntakeAttachment[] = [];
+    const attachmentDrafts: ParsedOrder[] = [];
+    for (const att of em.attachments ?? []) {
+      const meta: IntakeAttachment = { filename: att.filename, contentType: att.contentType, bytes: 0, status: "unsupported", drafts: 0 };
+      try {
+        meta.bytes = attachmentBytes(att)?.length ?? 0;
+        const extracted = await extractAttachment(att);
+        if (extracted.kind === "text") {
+          const draft = parseOrderEmail({ from: em.from, subject: em.subject, body: resolveTokens(extracted.text, now) }, ref, now);
+          draft.source = { attachment: att.filename };
+          attachmentDrafts.push(draft);
+          meta.status = "parsed";
+          meta.drafts = 1;
+        } else if (extracted.kind === "rows") {
+          extracted.rows.forEach((row, i) => {
+            const body = resolveTokens(rowToLabeledText(row), now);
+            if (!body.trim()) return;
+            const draft = parseOrderEmail({ from: em.from, subject: "", body }, ref, now);
+            draft.source = { attachment: att.filename, row: i + 2 };
+            attachmentDrafts.push(draft);
+            meta.drafts += 1;
+          });
+          meta.status = "parsed";
+          if (meta.drafts === 0) meta.note = "no order rows found";
+        } else {
+          meta.note = extracted.reason;
+        }
+      } catch (e) {
+        meta.status = "error";
+        meta.note = (e as Error).message;
+      }
+      attachments.push(meta);
+    }
+    const drafts = attachmentDrafts.length ? attachmentDrafts.map((d) => mergeParsed(d, bodyDraft)) : [bodyDraft];
+    for (const parsed of drafts) {
+      const intake: EmailIntake = {
+        id: store.nextId("emailIntakes", "ei-"),
+        messageId: em.messageId,
+        receivedAt: new Date(now.getTime() + em.receivedAtOffsetHours * 3_600_000).toISOString(),
+        from: em.from,
+        subject: em.subject,
+        body: em.body,
+        attachments: attachments.length ? attachments : undefined,
+        parsed,
+        confidence: overallConfidence(parsed),
+        issues: intakeIssues(store, parsed, queued),
+        reviewStatus: "pending",
+      };
+      store.save("emailIntakes", intake);
+      queued.push(intake);
+      if (parsed.source) fromAttachments += 1;
+    }
+    emailsParsed += 1;
     existing.add(em.messageId);
   }
   const run: IntegrationRun = {
@@ -68,7 +114,7 @@ export function runEmailIntake(store: OpsStore, now: Date = new Date()): { run: 
     status: "success",
     recordsIn: file.emails.length,
     recordsOut: queued.length,
-    summary: `${queued.length} email(s) parsed and queued for review, ${skipped} already seen`,
+    summary: `${queued.length} draft order(s) queued from ${emailsParsed} email(s)${fromAttachments ? ` (${fromAttachments} from attachments)` : ""}, ${skipped} already seen`,
   };
   store.save("integrationRuns", run);
   return { run, queued, skipped };
