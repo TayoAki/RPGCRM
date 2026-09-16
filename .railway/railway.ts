@@ -40,8 +40,12 @@ export default defineRailway(() => {
       NORTHSTAR_DB_PATH: "/data/northstar.db",
       // Canned enrichment results until a Tavily key is configured.
       MOCK_TAVILY: "1",
-      // Set in the Railway dashboard (Variables tab); the placeholder that was
-      // deployed initially must be replaced with a real key for chat to work.
+      // LLM provider: OpenRouter's OpenAI-compatible Chat Completions API.
+      // Remove these three to use OpenAI directly (Responses API, gpt-5.4).
+      OPENAI_BASE_URL: "https://openrouter.ai/api/v1",
+      OPENAI_API_MODE: "chat",
+      OPENAI_MODEL: "openai/gpt-5.4",
+      // Secret, kept in Railway (agent service → Variables), never in this file.
       OPENAI_API_KEY: preserve(),
       // TAVILY_API_KEY: preserve(),  // add when you drop MOCK_TAVILY
     },

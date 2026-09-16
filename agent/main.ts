@@ -20,7 +20,8 @@ import { generateWeeklyReportTool } from "./src/tools/report.js";
 
 const model = new OpenAIModel({
   apiKey: process.env.OPENAI_API_KEY ?? "",
-  modelId: "gpt-5.4",
+  // Model id; override with OPENAI_MODEL (e.g. "openai/gpt-5.4" on OpenRouter).
+  modelId: process.env.OPENAI_MODEL ?? "gpt-5.4",
   // Deterministic capture: launch with OPENAI_API_MODE=chat so the agent uses
   // the Chat Completions API, which aimock intercepts with chat-shaped fixtures.
   // Pair with OPENAI_BASE_URL=<aimock>/v1 (the default OpenAI client reads it).

@@ -71,25 +71,31 @@ The full configuration lives in [`.railway/railway.ts`](./.railway/railway.ts)
 is deprecated and ignored for new services). Every push to the connected branch
 redeploys both services.
 
-### After the first deploy
+### LLM provider
 
-1. Open the `agent` service → **Variables** and replace the placeholder
-   `OPENAI_API_KEY` with a real key. The service redeploys automatically.
-   Until then the UI works but the assistant cannot answer.
-2. Optional: add `TAVILY_API_KEY` and remove `MOCK_TAVILY` to get live web
-   enrichment instead of canned results.
-3. Open the frontend's public domain and try "Show me the pipeline".
+The agent talks to any OpenAI-compatible API. The live deployment uses
+**OpenRouter**: `OPENAI_BASE_URL=https://openrouter.ai/api/v1`,
+`OPENAI_API_MODE=chat` (OpenRouter speaks the Chat Completions API), and
+`OPENAI_MODEL=openai/gpt-5.4`, with `OPENAI_API_KEY` set to an OpenRouter key.
+Leave those three unset to use OpenAI directly with its Responses API. Keys are
+set in the Railway dashboard (agent service → **Variables**), never in the repo.
+
+Optional: add `TAVILY_API_KEY` and remove `MOCK_TAVILY` to get live web
+enrichment instead of canned results.
 
 ### Variables
 
 `agent`
 
-| Variable            | Value                                            |
-| ------------------- | ------------------------------------------------ |
-| `OPENAI_API_KEY`    | your OpenAI key                                  |
-| `TAVILY_API_KEY`    | your Tavily key (or set `MOCK_TAVILY=1` instead) |
-| `PORT`              | `8000`                                           |
-| `NORTHSTAR_DB_PATH` | `/data/northstar.db`                             |
+| Variable            | Value                                                     |
+| ------------------- | --------------------------------------------------------- |
+| `OPENAI_API_KEY`    | your OpenRouter (or OpenAI) key                           |
+| `OPENAI_BASE_URL`   | `https://openrouter.ai/api/v1` (omit for OpenAI)          |
+| `OPENAI_API_MODE`   | `chat` (omit for OpenAI)                                  |
+| `OPENAI_MODEL`      | `openai/gpt-5.4` (omit for OpenAI's default `gpt-5.4`)    |
+| `TAVILY_API_KEY`    | your Tavily key (or set `MOCK_TAVILY=1` instead)          |
+| `PORT`              | `8000`                                                    |
+| `NORTHSTAR_DB_PATH` | `/data/northstar.db`                                      |
 
 `frontend`
 
