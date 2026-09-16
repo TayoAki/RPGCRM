@@ -21,9 +21,9 @@ describe("BOL matching", () => {
 });
 
 describe("loads service", () => {
-  it("pulls the sample feed: matches, flags duplicate and unmatched, starts billing", () => {
+  it("pulls the sample feed: matches, flags duplicate and unmatched, starts billing", async () => {
     const store = freshStore();
-    const { run, results } = pullBolFeed(store, NOW);
+    const { run, results } = await pullBolFeed(store, NOW);
     expect(run.recordsIn).toBe(5);
     expect(results.map((r) => r.outcome).sort()).toEqual(["duplicate", "matched", "matched", "matched", "unmatched"]);
     const l506 = store.load("l-506");

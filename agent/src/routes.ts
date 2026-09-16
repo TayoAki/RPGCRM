@@ -1,7 +1,7 @@
 import express from "express";
 import type { Express, Request, Response } from "express";
 import { ops } from "./domain/store.js";
-import type { Customer, Invoice, Load, Order, OrderStatus, LoadStatus, BillingStatus, PricingRule, RollupPeriod } from "./domain/types.js";
+import type { Customer, Invoice, Load, Order, OrderStatus, LoadStatus, BillingStatus, PricingRule, RollupPeriod, IntegrationRun } from "./domain/types.js";
 import { customerProfitability, dailySeries, dashboardMetrics, DEFAULT_ROLLUP_COUNT, periodRollups, rollupTotals } from "./analytics.js";
 import { enterRackPrice, importRackFeed, priceBoard, quotePrice, upsertPricingRule } from "./services/pricing.js";
 import { marketSummary, refreshIndexFeed, runForecast } from "./services/market.js";
@@ -11,6 +11,8 @@ import { approveInvoice, prepareInvoices, rejectInvoice, syncInvoicesToQuickBook
 import { acknowledgeException, resolveException, triageExceptions } from "./services/controls.js";
 import { recomputeAll } from "./services/context.js";
 import { portalData, portalLogin, portalLogout, portalSessionFor } from "./services/portal.js";
+import { sampleBolSource } from "./integrations/bol/source.js";
+import { resolveBolSource } from "./integrations/bol/dtn.js";
 import { DEFAULT_ACTOR } from "./services/actor.js";
 
 /**
@@ -96,9 +98,15 @@ export function registerOpsRoutes(app: Express): void {
   app.post("/ops/loads/:id/delivery", json, wrap((req) => recordDelivery(ops, String(req.params.id), req.body, actorOf(req))));
   app.post("/ops/loads/:id/billing-status", json, wrap((req) => setBillingStatus(ops, String(req.params.id), req.body?.status as BillingStatus, actorOf(req))));
 
-  app.post("/ops/bols/pull", wrap(() => {
-    const r = pullBolFeed(ops);
-    return { run: r.run, results: r.results.map((x) => ({ bolNumber: x.bol.bolNumber, outcome: x.outcome, loadNumber: x.load?.loadNumber })) };
+  // Which connector feeds BOLs right now (DTN when configured, the sample file otherwise).
+  app.get("/ops/integrations/bol-source", wrap(() => {
+    const src = resolveBolSource() ?? sampleBolSource();
+    const last = ops.all<IntegrationRun>("integrationRuns").filter((r) => r.kind === "bol_feed").at(-1) ?? null;
+    return { ...src.describe(), lastRun: last };
+  }));
+  app.post("/ops/bols/pull", wrap(async () => {
+    const r = await pullBolFeed(ops);
+    return { run: r.run, source: r.source, skipped: r.skipped, results: r.results.map((x) => ({ bolNumber: x.bol.bolNumber, outcome: x.outcome, loadNumber: x.load?.loadNumber })) };
   }));
   app.post("/ops/bols", json, wrap((req) => {
     const r = ingestBol(ops, { ...req.body, source: req.body?.source ?? "manual" }, actorOf(req));

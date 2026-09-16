@@ -45,6 +45,10 @@ export default defineRailway(() => {
       OPENAI_MODEL: "openai/gpt-5.4",
       // Secret, kept in Railway (agent service → Variables), never in this file.
       OPENAI_API_KEY: preserve(),
+      // DTN electronic BOL feed (Module E). Off keeps the sample feed; see README "Connecting DTN".
+      // DTN_BOL_MODE: "https",
+      // DTN_BOL_URL: "https://<from the DTN onboarding packet>",
+      // DTN_API_KEY: preserve(),
     },
   });
 

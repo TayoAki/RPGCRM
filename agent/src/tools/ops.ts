@@ -196,10 +196,12 @@ export const pullBolFeedTool = tool({
   name: "pull_bol_feed",
   description: "Pull electronic BOLs from suppliers/terminals (sample feed in this MVP), deduplicate them, match each to a load, and start the billing workflow for matched loads. Returns per-BOL outcomes.",
   inputSchema: z.object({}),
-  callback: () => {
-    const r = pullBolFeed(ops);
+  callback: async () => {
+    const r = await pullBolFeed(ops);
     return {
       summary: r.run.summary,
+      source: r.source.name,
+      skipped: r.skipped,
       results: r.results.map((x) => ({
         bolId: x.bol.id,
         bolNumber: x.bol.bolNumber,

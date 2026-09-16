@@ -36,7 +36,7 @@ model in [RPG_DATA_MODEL.md](./RPG_DATA_MODEL.md) and the build plan in
 | B. Margin & profit tracking     | `/reports`, load drawer           | Expected vs actual gross profit per load and per customer, totals by day, week, and month, profit per gallon, low-margin and cost-variance flags                             |
 | C. Fuel market tracker          | `/market`                         | Index history (OPIS, NYMEX), sample feed refresh, next-day direction forecast with a backtested hit rate                                                                     |
 | D. Billing & invoicing          | `/billing`                        | Billing board (BOL Received → Pricing Verified → Ready to Invoice → Invoiced → Paid), invoice builder (net or gross gallons, taxes, freight, fees), management approval gate, QuickBooks sync and payment import (mock) |
-| E. Load & BOL management        | `/loads`, `/bols`                 | Dispatch board with drag-to-advance statuses, delivery tickets, BOL feed ingestion with duplicate detection and automatic load matching, manual match for the rest          |
+| E. Load & BOL management        | `/loads`, `/bols`                 | Dispatch board with drag-to-advance statuses, delivery tickets, BOL ingestion from a pluggable source (sample feed, or the DTN connector when configured) with duplicate detection and automatic load matching, manual match for the rest |
 | F. Customer portal              | `/portal`                         | Customer sign-in (email + password, httpOnly session cookie, lockout after repeated failures), then a read-only order timeline, deliveries, and invoices scoped to that customer |
 | G. Orders                       | `/orders`                         | Manual order entry, milestone tracking (Received → Confirmed → Carrier Confirmed → In Transit → Delivered), credit holds and release                                        |
 | H. Email order intake           | `/orders` → Intake queue          | Sample inbox parsed into draft orders with a confidence score and issues; attachments too (CSV and Excel order sheets become one draft per row, PDF purchase orders one draft); human review and approval |
@@ -90,7 +90,7 @@ example, only management can approve an invoice).
 | Integration          | Sample file                                                                | Triggered by                                                        | Real integration would plug into                    |
 | -------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------- |
 | Order inbox (email)  | `agent/samples/emails.json` + `agent/samples/attachments/` (CSV, XLSX, PDF) | "Run email intake" (Orders page, copilot) or `POST /ops/intake/run` | `agent/src/services/orders.ts` → `runEmailIntake`; attachment bytes go through `agent/src/intake/attachments.ts` |
-| Supplier BOL feed    | `agent/samples/bol-feed.json`                                              | "Pull BOL feed" (Loads / BOLs pages, copilot) or `POST /ops/bols/pull` | `agent/src/services/loads.ts` → `pullBolFeed`    |
+| Supplier BOL feed    | `agent/samples/bol-feed.json` (or DTN, see below)                          | "Pull BOL feed" (Loads / BOLs pages, copilot) or `POST /ops/bols/pull` | `agent/src/integrations/bol/` (`BolSource`); DTN connector in `dtn.ts` |
 | Supplier rack feed   | `agent/samples/rack-feed.json`                                             | "Import rack feed" (Pricing page, dashboard, copilot) or `POST /ops/rack-prices/import` | `agent/src/services/pricing.ts` → `importRackFeed` |
 | Market index feed    | `agent/samples/index-feed.json`                                            | "Refresh feed" (Market page, copilot) or `POST /ops/market/refresh` | `agent/src/services/market.ts` → `refreshIndexFeed` |
 | QuickBooks Online    | `agent/samples/quickbooks-invoice-template.json`, `quickbooks-payments.json` | "Sync QuickBooks" (Billing page, copilot) or `POST /ops/quickbooks/sync-invoices` and `sync-payments` | `agent/src/integrations/quickbooks/mock.ts` |
@@ -99,6 +99,35 @@ Sample files use relative time tokens (`{{DATE+1}}`, `{{DATETIME-5h}}`) that are
 resolved when the sample is loaded, so the demo stays current. Feeds are
 idempotent: pulling the BOL feed twice reports the second batch as duplicates, and
 an email whose PO is already queued is flagged instead of creating a second draft.
+
+### Connecting DTN for electronic BOLs
+
+The BOL feed is a pluggable source. With nothing configured it reads the sample
+file; set the DTN variables on the agent service and the same pull reads DTN:
+
+| Variable          | Value                                                                                   |
+| ----------------- | --------------------------------------------------------------------------------------- |
+| `DTN_BOL_MODE`    | `https` to pull from DTN's endpoint, `directory` to read files DTN drops (SFTP mirror or mounted volume), `off` for the sample feed |
+| `DTN_BOL_URL`     | the endpoint from your DTN onboarding packet (`https` mode)                             |
+| `DTN_API_KEY`     | its credential, sent as a bearer token and `x-api-key` header                           |
+| `DTN_BOL_DIR`     | inbox folder for `directory` mode; processed files move to `processed/`                 |
+| `DTN_BOL_FORMAT`  | `csv` or `json` (optional; detected otherwise)                                          |
+| `DTN_FIELD_MAP`   | path to the crosswalk file (default `agent/config/dtn-bol-map.json`)                    |
+
+DTN exports use their own column names and identifiers (supplier names, terminal
+control numbers, carrier SCACs, product codes, consignee names). Those live in
+[`agent/config/dtn-bol-map.json`](./agent/config/dtn-bol-map.json), not in code.
+Before switching the mode on, dry-run a sample export from DTN:
+
+```bash
+cd agent && npx tsx scripts/check-dtn-file.ts ~/Downloads/dtn-export.csv
+```
+
+It prints how each BOL maps and what would be skipped and why, so the crosswalk
+can be completed with real values. On every pull, BOLs whose codes the platform
+does not know are listed as skipped in the run summary rather than dropped; the
+BOLs page shows the active source and the last pull. Supplier portals or terminal
+exports would be further sources behind the same interface.
 
 ## Layout
 

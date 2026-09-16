@@ -1,4 +1,7 @@
 import type { OpsStore } from "../domain/store.js";
+import { sampleBolSource } from "../integrations/bol/source.js";
+import type { BolFetchResult, BolSource, BolSourceStatus, SkippedRecord } from "../integrations/bol/source.js";
+import { resolveBolSource } from "../integrations/bol/dtn.js";
 import type {
   BillingStatus,
   Bol,
@@ -20,7 +23,6 @@ import { BILLING_STATUSES } from "../domain/types.js";
 import { dedupeHash, findBestLoad } from "../bols/match.js";
 import { latestRackPrice } from "../pricing/engine.js";
 import { taxesPerGallon } from "../pricing/taxes.js";
-import { loadSample } from "../samples/loader.js";
 import { freightRatePerGallon } from "../margin/compute.js";
 import { marginContext, recomputeAll } from "./context.js";
 import { setOrderStatus } from "./orders.js";
@@ -167,26 +169,6 @@ export function appendLoadEvent(store: OpsStore, load: Load, from: LoadStatus | 
 // BOLs (Module E)
 // ---------------------------------------------------------------------------
 
-interface SampleBolLine {
-  productCode: string;
-  grossGallons: number;
-  netGallons: number;
-  supplierCostPerGallon: number | "{{RACK}}";
-  taxesPerGallon?: number;
-  feesPerGallon?: number;
-}
-
-interface SampleBol {
-  bolNumber: string;
-  supplierCode: string;
-  terminalCode: string;
-  carrierCode: string;
-  liftedAt: string;
-  destinationText: string;
-  customerRef: string;
-  lines: SampleBolLine[];
-}
-
 export interface BolInput {
   bolNumber: string;
   supplierId: string;
@@ -289,40 +271,83 @@ export function matchBolToLoad(store: OpsStore, bolId: string, loadId: string, a
 }
 
 /** Module E: pull the supplier feed (sample file) and ingest every BOL in it. */
-export function pullBolFeed(store: OpsStore, now: Date = new Date()): { run: IntegrationRun; results: IngestResult[] } {
+export interface PullBolResult {
+  run: IntegrationRun;
+  results: IngestResult[];
+  /** Records the source produced that could not be placed against reference data. */
+  skipped: SkippedRecord[];
+  source: BolSourceStatus;
+}
+
+/**
+ * Module E: pull BOLs from the configured source (DTN when DTN_BOL_MODE is set,
+ * the sample feed otherwise), normalize codes, and ingest each one through the
+ * same dedupe-and-match path manual entries use.
+ */
+export async function pullBolFeed(store: OpsStore, now: Date = new Date(), source: BolSource = resolveBolSource() ?? sampleBolSource()): Promise<PullBolResult> {
   const startedAt = now.toISOString();
-  const file = loadSample<{ bols: SampleBol[] }>("bol-feed.json", now);
+  const status = source.describe();
+  let fetched: BolFetchResult;
+  try {
+    fetched = await source.fetch(now);
+  } catch (e) {
+    const run: IntegrationRun = {
+      id: store.nextId("integrationRuns", "run-"),
+      kind: "bol_feed",
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      status: "failed",
+      recordsIn: 0,
+      recordsOut: 0,
+      summary: `${status.name}: ${(e as Error).message}`,
+      source: status.name,
+    };
+    store.save("integrationRuns", run);
+    return { run, results: [], skipped: [], source: status };
+  }
   const suppliers = store.all<Supplier>("suppliers");
   const terminals = store.all<Terminal>("terminals");
   const carriers = store.all<Carrier>("carriers");
   const products = store.all<Product>("products");
+  const customers = store.all<Customer>("customers");
+  const code = (s: string) => s.trim().toUpperCase();
   const results: IngestResult[] = [];
-  for (const sb of file.bols) {
-    const supplier = suppliers.find((s) => s.code === sb.supplierCode);
-    const terminal = terminals.find((t) => t.code === sb.terminalCode);
-    const carrier = carriers.find((c) => c.code === sb.carrierCode);
-    if (!supplier || !terminal || !carrier) continue;
+  const skipped: SkippedRecord[] = [...fetched.skipped];
+  for (const rec of fetched.records) {
+    const supplier = suppliers.find((x) => code(x.code) === code(rec.supplierCode));
+    const terminal = terminals.find((x) => code(x.code) === code(rec.terminalCode));
+    const carrier = carriers.find((x) => code(x.code) === code(rec.carrierCode));
+    const unknown = [!supplier && `supplier ${rec.supplierCode}`, !terminal && `terminal ${rec.terminalCode}`, !carrier && `carrier ${rec.carrierCode}`].filter(Boolean);
+    if (unknown.length) { skipped.push({ ref: rec.bolNumber, reason: `unknown ${unknown.join(", ")}` }); continue; }
+    // A consignee name from a feed becomes the customer's code when we can recognize it.
+    let customerRef = rec.customerRef;
+    if (customerRef && !customers.some((c) => code(c.code) === code(customerRef))) {
+      const byName = store.findCustomerByName(customerRef);
+      if (byName) customerRef = byName.code;
+    }
+    const lines = rec.lines.flatMap((l) => {
+      const product = products.find((x) => code(x.code) === code(l.productCode));
+      if (!product) { skipped.push({ ref: rec.bolNumber, reason: `unknown product ${l.productCode}` }); return []; }
+      return [{
+        productId: product.id,
+        grossGallons: l.grossGallons,
+        netGallons: l.netGallons,
+        supplierCostPerGallon: typeof l.supplierCostPerGallon === "number" ? l.supplierCostPerGallon : undefined,
+        taxesPerGallon: l.taxesPerGallon,
+        feesPerGallon: l.feesPerGallon,
+      }];
+    });
+    if (lines.length === 0) { skipped.push({ ref: rec.bolNumber, reason: "no usable product lines" }); continue; }
     const input: BolInput = {
-      bolNumber: sb.bolNumber,
-      supplierId: supplier.id,
-      terminalId: terminal.id,
-      carrierId: carrier.id,
-      liftedAt: sb.liftedAt,
-      destinationText: sb.destinationText,
-      customerRef: sb.customerRef,
+      bolNumber: rec.bolNumber,
+      supplierId: supplier!.id,
+      terminalId: terminal!.id,
+      carrierId: carrier!.id,
+      liftedAt: rec.liftedAt,
+      destinationText: rec.destinationText,
+      customerRef,
       source: "feed",
-      lines: sb.lines.flatMap((l) => {
-        const product = products.find((p) => p.code === l.productCode);
-        if (!product) return [];
-        return [{
-          productId: product.id,
-          grossGallons: l.grossGallons,
-          netGallons: l.netGallons,
-          supplierCostPerGallon: typeof l.supplierCostPerGallon === "number" ? l.supplierCostPerGallon : undefined,
-          taxesPerGallon: l.taxesPerGallon,
-          feesPerGallon: l.feesPerGallon,
-        }];
-      }),
+      lines,
     };
     results.push(ingestBol(store, input, "system", now));
   }
@@ -334,12 +359,13 @@ export function pullBolFeed(store: OpsStore, now: Date = new Date()): { run: Int
     kind: "bol_feed",
     startedAt,
     finishedAt: new Date().toISOString(),
-    status: unmatched ? "partial" : "success",
-    recordsIn: file.bols.length,
+    status: unmatched || skipped.length ? "partial" : "success",
+    recordsIn: fetched.records.length + fetched.skipped.length,
     recordsOut: results.length,
-    summary: `${results.length} BOL(s) received: ${matched} matched, ${unmatched} unmatched, ${dup} duplicate`,
+    summary: `${status.name}: ${results.length} BOL(s) received: ${matched} matched, ${unmatched} unmatched, ${dup} duplicate${skipped.length ? `, ${skipped.length} skipped` : ""}`,
+    source: status.name,
   };
   store.save("integrationRuns", run);
   recomputeAll(store, now);
-  return { run, results };
+  return { run, results, skipped, source: status };
 }

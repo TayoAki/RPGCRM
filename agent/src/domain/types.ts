@@ -618,6 +618,8 @@ export interface IntegrationRun {
   recordsIn: number;
   recordsOut: number;
   summary: string;
+  /** Which connector produced the run (e.g. "Sample feed", "DTN (https)"). */
+  source?: string;
 }
 
 // ---------------------------------------------------------------------------

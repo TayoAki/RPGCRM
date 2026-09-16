@@ -1,0 +1,49 @@
+{
+  "_readme": "Crosswalk for the DTN BOL feed. `fields` lists the column names (or JSON keys) DTN uses for each value we need; the first one present wins and matching ignores case, spaces, and underscores. `suppliers`, `terminals`, `carriers`, `products`, and `customerRefs` map DTN identifiers (supplier names, terminal control numbers, SCACs, product codes, consignee names) to the codes in this platform. Fill these in from the DTN onboarding packet and check a sample export with: npx tsx scripts/check-dtn-file.ts <file>",
+  "fields": {
+    "bolNumber": ["BOL_NUMBER", "BOL_NO", "BOL", "BOLNUMBER", "TICKET_NUMBER", "DOCUMENT_NUMBER"],
+    "liftedAt": ["BOL_DATE_TIME", "LIFT_DATE_TIME", "LOAD_DATE_TIME", "BOL_DATETIME", "BOL_DATE", "DATE_TIME", "LIFTED_AT"],
+    "supplier": ["SUPPLIER", "SUPPLIER_NAME", "SUPPLIER_CODE", "SUPPLIER_ID", "SHIPPER"],
+    "terminal": ["TCN", "TERMINAL_CONTROL_NUMBER", "TERMINAL", "TERMINAL_CODE", "TERMINAL_NAME", "TERMINAL_ID"],
+    "carrier": ["CARRIER_SCAC", "SCAC", "CARRIER", "CARRIER_CODE", "CARRIER_NAME"],
+    "consignee": ["CONSIGNEE", "CONSIGNEE_NAME", "CUSTOMER", "CUSTOMER_NAME", "SOLD_TO", "ACCOUNT_NAME", "BILL_TO"],
+    "destination": ["DESTINATION", "DESTINATION_CITY", "SHIP_TO", "SHIP_TO_NAME", "DELIVERY_ADDRESS", "DESTINATION_TEXT"],
+    "product": ["PRODUCT", "PRODUCT_CODE", "PRODUCT_DESC", "PRODUCT_DESCRIPTION", "COMMODITY"],
+    "grossGallons": ["GROSS_GALLONS", "GROSS_QTY", "GROSS", "GROSS_VOLUME"],
+    "netGallons": ["NET_GALLONS", "NET_QTY", "NET", "NET_VOLUME"],
+    "unitPrice": ["UNIT_PRICE", "PRICE", "RACK_PRICE", "PRICE_PER_GALLON", "SUPPLIER_PRICE"],
+    "taxes": ["TAXES", "TAX", "TAXES_PER_GALLON", "TAX_PER_GAL", "TOTAL_TAX_PER_GALLON"],
+    "fees": ["FEES", "FEES_PER_GALLON", "FEE_PER_GAL"]
+  },
+  "suppliers": {
+    "MOTIVA": "MOT", "MOTIVA ENTERPRISES": "MOT", "MOTIVA ENTERPRISES LLC": "MOT",
+    "MARATHON": "MPC", "MARATHON PETROLEUM": "MPC", "MARATHON PETROLEUM COMPANY LP": "MPC",
+    "VALERO": "VLO", "VALERO MARKETING AND SUPPLY": "VLO", "VALERO MARKETING & SUPPLY": "VLO"
+  },
+  "terminals": {
+    "DALLAS": "DAL", "DALLAS TERMINAL": "DAL",
+    "FORT WORTH": "FTW", "FORT WORTH TERMINAL": "FTW",
+    "HOUSTON": "HOU", "PASADENA": "HOU", "HOUSTON PASADENA": "HOU", "HOUSTON PASADENA TERMINAL": "HOU"
+  },
+  "carriers": {
+    "LNST": "LONESTAR", "LONE STAR TRANSPORT": "LONESTAR",
+    "BLBT": "BLUEBONNET", "BLUEBONNET": "BLUEBONNET", "BLUEBONNET CARRIERS": "BLUEBONNET",
+    "RPGF": "RPG", "RPG FLEET": "RPG", "ROYALTY PETROLEUMS GROUP": "RPG"
+  },
+  "products": {
+    "ULSD": "ULSD", "ULS2": "ULSD", "ULSD #2": "ULSD", "CLEAR ULSD": "ULSD", "DIESEL ULSD CLEAR": "ULSD", "ULSD CLEAR": "ULSD",
+    "ULSD DYED": "DYED", "DYED ULSD": "DYED", "DYED DIESEL": "DYED", "ULSR": "DYED", "OFF ROAD DIESEL": "DYED",
+    "RUL": "UNL87", "UNL 87": "UNL87", "UNLEADED 87": "UNL87", "REGULAR UNLEADED": "UNL87", "E10 87": "UNL87", "87 E10": "UNL87",
+    "PUL": "PRM93", "UNL 93": "PRM93", "PREMIUM UNLEADED": "PRM93", "PREMIUM 93": "PRM93",
+    "DEF": "DEF", "DIESEL EXHAUST FLUID": "DEF"
+  },
+  "customerRefs": {
+    "LONE STAR AGGREGATES": "LSA",
+    "BRAZOS COUNTY ROADS": "BCR",
+    "PRAIRIE TRUCKING FLEET": "PTF", "PRAIRIE TRUCKING": "PTF",
+    "GULF COAST FARMS CO-OP": "GCF", "GULF COAST FARMS": "GCF",
+    "QUICKSTOP MARKETS": "QSM",
+    "HILL PEAK READY-MIX": "HPR", "HILL PEAK READY MIX": "HPR",
+    "TRINITY RIVER CONTRACTORS": "TRC"
+  }
+}

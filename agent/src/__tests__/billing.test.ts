@@ -21,9 +21,9 @@ describe("invoice builder", () => {
 });
 
 describe("billing workflow", () => {
-  it("prepare → approve (management only) → sync → pay", () => {
+  it("prepare → approve (management only) → sync → pay", async () => {
     const store = freshStore();
-    pullBolFeed(store, NOW);
+    await pullBolFeed(store, NOW);
     const drafts = prepareInvoices(store, "u-elena", NOW);
     expect(drafts.length).toBeGreaterThanOrEqual(3);
     expect(drafts.every((d) => d.status === "pending_approval")).toBe(true);
