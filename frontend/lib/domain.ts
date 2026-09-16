@@ -497,6 +497,33 @@ export interface LoadMargin {
   computedAt: string;
 }
 
+/** Reporting period for the day / week / month rollups (Module B). */
+export type RollupPeriod = "day" | "week" | "month";
+
+/** Delivered volume, revenue, and gross profit for one calendar bucket. */
+export interface PeriodRollup {
+  period: RollupPeriod;
+  /** Bucket id: yyyy-mm-dd, yyyy-Www (ISO week, Monday start), or yyyy-mm. */
+  key: string;
+  label: string;
+  /** Inclusive calendar bounds (yyyy-mm-dd). */
+  start: string;
+  end: string;
+  loads: number;
+  /** Delivered loads whose actual margin is still pending a BOL. */
+  pendingLoads: number;
+  gallons: number;
+  revenue: number;
+  supplierCost: number;
+  freightCost: number;
+  expectedGrossProfit: number;
+  actualGrossProfit: number;
+  /** Actual gross profit per gallon over the loads that have an actual margin. */
+  profitPerGallon: number | null;
+  /** Actual minus expected gross profit for the loads that have an actual margin. */
+  variance: number;
+}
+
 export type ExceptionType =
   | "missing_bol"
   | "unassigned_customer"

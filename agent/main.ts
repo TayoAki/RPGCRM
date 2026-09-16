@@ -14,7 +14,7 @@ import {
   listLoadsTool, createLoadTool, updateLoadStatusTool, recordDeliveryTool, setBillingStatusTool, pullBolFeedTool, matchBolTool, listBolsTool,
 } from "./src/tools/ops.js";
 import { listInvoicesTool, prepareInvoicesTool, approveInvoiceTool, rejectInvoiceTool, syncQuickBooksTool } from "./src/tools/billing.js";
-import { dailyBriefTool, marketUpdateTool, refreshMarketFeedTool, triageExceptionsTool, resolveExceptionTool, marginReportTool, customerSummaryTool } from "./src/tools/insights.js";
+import { dailyBriefTool, marketUpdateTool, refreshMarketFeedTool, triageExceptionsTool, resolveExceptionTool, marginReportTool, profitRollupsTool, customerSummaryTool } from "./src/tools/insights.js";
 
 const model = new OpenAIModel({
   apiKey: process.env.OPENAI_API_KEY ?? "",
@@ -47,7 +47,7 @@ Rack = supplier base price at a terminal. BOL = bill of lading issued at the ter
 - Orders → list_orders / update_order_status. Loads → list_loads / create_load / update_load_status / record_delivery / set_billing_status.
 - BOLs → pull_bol_feed (ingest from suppliers), list_bols, match_bol for unmatched ones.
 - Billing → list_invoices / prepare_invoices / confirm_invoice → approve_invoice / reject_invoice / sync_quickbooks.
-- Profit, margin, profitability → margin_report. "Tell me about <customer>" → customer_summary.
+- Profit, margin, profitability → margin_report. Totals by day, week, or month ("how did we do last week", "gallons by month") → profit_rollups. "Tell me about <customer>" → customer_summary.
 - Navigation ("show me the loads board", "open billing") → navigate_to with one of: dashboard, orders, loads, pricing, market, bols, billing, exceptions, customers, network, reports. Confirm in a short phrase. To open a specific order or load, focus_order / focus_load.
 
 ## Style
@@ -61,7 +61,7 @@ const agent = new Agent({
     runEmailIntakeTool, listIntakeQueueTool, reviewIntakeTool, listOrdersTool, createOrderTool, updateOrderStatusTool, releaseCreditHoldTool,
     listLoadsTool, createLoadTool, updateLoadStatusTool, recordDeliveryTool, setBillingStatusTool, pullBolFeedTool, matchBolTool, listBolsTool,
     listInvoicesTool, prepareInvoicesTool, approveInvoiceTool, rejectInvoiceTool, syncQuickBooksTool,
-    dailyBriefTool, marketUpdateTool, refreshMarketFeedTool, triageExceptionsTool, resolveExceptionTool, marginReportTool, customerSummaryTool,
+    dailyBriefTool, marketUpdateTool, refreshMarketFeedTool, triageExceptionsTool, resolveExceptionTool, marginReportTool, profitRollupsTool, customerSummaryTool,
   ],
 });
 

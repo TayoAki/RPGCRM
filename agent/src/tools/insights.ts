@@ -3,7 +3,7 @@ import { tool } from "@strands-agents/sdk";
 import type { JSONValue } from "@strands-agents/sdk";
 import { ops } from "../domain/store.js";
 import type { Contact, DeliveryLocation, Invoice, Load, LoadMargin, Order, Product } from "../domain/types.js";
-import { customerProfitability, dailySeries, dashboardMetrics } from "../analytics.js";
+import { DEFAULT_ROLLUP_COUNT, periodRollups, rollupTotals, customerProfitability, dailySeries, dashboardMetrics } from "../analytics.js";
 import { marketSummary, refreshIndexFeed, runForecast } from "../services/market.js";
 import { resolveException, triageExceptions } from "../services/controls.js";
 import { priceBoard } from "../services/pricing.js";
@@ -103,6 +103,20 @@ export const marginReportTool = tool({
       loads: margins,
       customers: customerProfitability(state, now, days ?? 30).filter((r) => !c || r.customerId === c.id),
     } as unknown as JSONValue;
+  },
+});
+
+/** Rendered as a table card. */
+export const profitRollupsTool = tool({
+  name: "profit_rollups",
+  description: "Totals by day, week, or month (Module B): delivered loads, gallons, revenue, expected vs actual gross profit, and profit per gallon per period. Use for 'how did we do last week / this month', 'gross profit by week', 'monthly gallons'.",
+  inputSchema: z.object({
+    period: z.enum(["day", "week", "month"]).describe("Bucket size"),
+    count: z.number().int().min(1).max(24).optional().describe("How many trailing periods (default 14 days, 8 weeks, or 6 months)"),
+  }),
+  callback: ({ period, count }) => {
+    const rollups = periodRollups(ops.snapshot(), period, new Date(), count ?? DEFAULT_ROLLUP_COUNT[period]);
+    return { period, count: rollups.length, rollups, totals: rollupTotals(rollups) } as unknown as JSONValue;
   },
 });
 

@@ -33,7 +33,7 @@ model in [RPG_DATA_MODEL.md](./RPG_DATA_MODEL.md) and the build plan in
 | Plan module                     | Where                             | What works                                                                                                                                                                  |
 | ------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | A. Pricing                      | `/pricing`                        | Rack price entry, pricing rules (rack / index / fixed basis, differential, freight, fees, contract vs spot, effective dates), auto-calculated price board, quotes with a line-by-line explanation, Texas fuel taxes by product category |
-| B. Margin & profit tracking     | `/reports`, load drawer           | Expected vs actual gross profit per load and per customer, profit per gallon, low-margin and cost-variance flags                                                            |
+| B. Margin & profit tracking     | `/reports`, load drawer           | Expected vs actual gross profit per load and per customer, totals by day, week, and month, profit per gallon, low-margin and cost-variance flags                             |
 | C. Fuel market tracker          | `/market`                         | Index history (OPIS, NYMEX), sample feed refresh, next-day direction forecast with a backtested hit rate                                                                     |
 | D. Billing & invoicing          | `/billing`                        | Billing board (BOL Received → Pricing Verified → Ready to Invoice → Invoiced → Paid), invoice builder (net or gross gallons, taxes, freight, fees), management approval gate, QuickBooks sync and payment import (mock) |
 | E. Load & BOL management        | `/loads`, `/bols`                 | Dispatch board with drag-to-advance statuses, delivery tickets, BOL feed ingestion with duplicate detection and automatic load matching, manual match for the rest          |
@@ -207,6 +207,7 @@ acting user in the `x-actor-id` header.
 | GET    | `/ping`                                            | Health check                                |
 | GET    | `/ops`                                             | Trimmed operational snapshot for the UI     |
 | GET    | `/ops/dashboard`                                   | Dashboard metrics and daily series          |
+| GET    | `/ops/reports/rollups?period=week`                 | Totals by day, week, or month               |
 | GET    | `/ops/price-board`, POST `/ops/price/quote`        | Prices                                      |
 | POST   | `/ops/rack-prices`, `/ops/pricing-rules`           | Pricing inputs                              |
 | GET    | `/ops/market`, POST `/ops/market/refresh`          | Indexes, feed refresh and forecast          |

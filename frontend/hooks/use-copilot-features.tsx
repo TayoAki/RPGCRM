@@ -94,6 +94,15 @@ export function useCopilotFeatures({ setSelectedOrderId, setSelectedLoadId }: { 
   }, []);
   useRenderTool({ name: "margin_report", parameters: any, render: ({ result, status }) => <MarginCard r={parseResult<MarginResult>(result)} status={status} onOpen={() => go("reports")} onOpenLoad={openLoad} /> }, []);
   useRenderTool({
+    name: "profit_rollups",
+    parameters: any,
+    render: ({ result, status }) => {
+      const r = parseResult<{ period?: string; rollups?: Rec[] }>(result);
+      const rows = [...(r?.rollups ?? [])].reverse();
+      return <ListCard title={`Totals by ${str(r?.period, "period")}`} status={status} headers={["Period", "Loads", "Gallons", "Revenue", "Actual GP", "GP/gal"]} rows={rows.map((x) => [str(x.label), str(x.loads), gal(num(x.gallons)), money(num(x.revenue)), money(num(x.actualGrossProfit)), ppg(x.profitPerGallon as number | null)])} onOpen={() => go("reports")} openLabel="Open reports" />;
+    },
+  }, []);
+  useRenderTool({
     name: "customer_summary",
     parameters: any,
     render: ({ result, status }) => {

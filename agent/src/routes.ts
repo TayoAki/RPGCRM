@@ -1,8 +1,8 @@
 import express from "express";
 import type { Express, Request, Response } from "express";
 import { ops } from "./domain/store.js";
-import type { Customer, Invoice, Load, Order, OrderStatus, LoadStatus, BillingStatus, PricingRule } from "./domain/types.js";
-import { customerProfitability, dailySeries, dashboardMetrics } from "./analytics.js";
+import type { Customer, Invoice, Load, Order, OrderStatus, LoadStatus, BillingStatus, PricingRule, RollupPeriod } from "./domain/types.js";
+import { customerProfitability, dailySeries, dashboardMetrics, DEFAULT_ROLLUP_COUNT, periodRollups, rollupTotals } from "./analytics.js";
 import { enterRackPrice, priceBoard, quotePrice, upsertPricingRule } from "./services/pricing.js";
 import { marketSummary, refreshIndexFeed, runForecast } from "./services/market.js";
 import { createOrder, releaseCreditHold, reviewIntake, runEmailIntake, setOrderStatus } from "./services/orders.js";
@@ -66,6 +66,15 @@ export function registerOpsRoutes(app: Express): void {
   app.post("/ops/rack-prices", json, wrap((req) => enterRackPrice(ops, req.body, actorOf(req))));
   app.post("/ops/pricing-rules", json, wrap((req) => upsertPricingRule(ops, req.body as PricingRule, actorOf(req))));
 
+  // Module B: totals by day / week / month for the Reports page.
+  app.get("/ops/reports/rollups", wrap((req) => {
+    const period = String(req.query.period ?? "week");
+    if (!["day", "week", "month"].includes(period)) throw new Error(`Unknown period "${period}"; use day, week, or month`);
+    const p = period as RollupPeriod;
+    const count = Math.max(1, Math.min(24, Number(req.query.count) || DEFAULT_ROLLUP_COUNT[p]));
+    const rollups = periodRollups(ops.snapshot(), p, new Date(), count);
+    return { period: p, count, rollups, totals: rollupTotals(rollups) };
+  }));
   app.get("/ops/market", wrap(() => marketSummary(ops, 60)));
   app.post("/ops/market/refresh", wrap(() => {
     const feed = refreshIndexFeed(ops);

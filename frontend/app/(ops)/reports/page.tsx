@@ -1,13 +1,25 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useOpsContext } from "@/components/ops-context";
 import { Page, PageHeader, DataTable, SectionCard } from "@/components/ops/primitives";
 import { AreaChart, BarList } from "@/components/charts";
+import { Button } from "@/components/ui/button";
+import type { PeriodRollup, RollupPeriod } from "@/lib/domain";
 import { customerName, fmtDate, fmtDateTime, gal, money, ppg, productCode, signed, staffName, titleCase } from "@/lib/ops";
 
+interface RollupResponse { period: RollupPeriod; count: number; rollups: PeriodRollup[]; totals: { loads: number; pendingLoads: number; gallons: number; revenue: number; expectedGrossProfit: number; actualGrossProfit: number; variance: number; profitPerGallon: number | null } }
+const PERIODS: RollupPeriod[] = ["day", "week", "month"];
+const ppgTone = (v: number) => (v < 0 ? "text-[color:var(--risk-high)]" : v < 0.04 ? "text-[color:var(--risk-medium)]" : "");
+
 export default function ReportsPage() {
-  const { state, setSelectedLoadId } = useOpsContext();
+  const { state, setSelectedLoadId, act, version } = useOpsContext();
   const [now] = useState(() => Date.now());
+  // Day / week / month totals come from the agent (same numbers the copilot's profit_rollups tool reports).
+  const [period, setPeriod] = useState<RollupPeriod>("week");
+  const [rollups, setRollups] = useState<RollupResponse | null>(null);
+  useEffect(() => {
+    act<RollupResponse>(`reports/rollups?period=${period}`, undefined, "GET").then(setRollups).catch(() => undefined);
+  }, [act, period, version]);
   const daily = useMemo(() => {
     const days = 14;
     const out = Array.from({ length: days }, (_, i) => { const date = new Date(now - (days - 1 - i) * 86_400_000).toISOString().slice(0, 10); return { date, gallons: 0, gp: 0 }; });
@@ -35,7 +47,35 @@ export default function ReportsPage() {
   const margins = [...state.loadMargins].map((m) => ({ ...m, load: state.loads.find((l) => l.id === m.loadId) })).filter((m) => m.load).sort((a, b) => (a.profitPerGallon ?? 99) - (b.profitPerGallon ?? 99));
   return (
     <Page>
-      <PageHeader title="Reports" description="Profitability by load and customer, delivered volume, integration runs, and the audit trail." />
+      <PageHeader title="Reports" description="Profitability by load and customer, totals by day, week, and month, integration runs, and the audit trail." />
+      <SectionCard
+        title="Totals by period"
+        action={<div className="flex gap-1">{PERIODS.map((p) => <Button key={p} size="sm" variant={period === p ? "default" : "outline"} onClick={() => setPeriod(p)}>{titleCase(p)}</Button>)}</div>}
+      >
+        {rollups && rollups.period === period ? (
+          <div className="space-y-3">
+            <div>
+              <div className="mb-1 text-xs text-muted-foreground">Actual gross profit per {period}</div>
+              <AreaChart data={rollups.rollups.map((r) => ({ label: r.label, value: r.actualGrossProfit }))} height={150} />
+            </div>
+            <DataTable dense rows={[...rollups.rollups].reverse()} rowKey={(r) => r.key} columns={[
+              { key: "p", header: "Period", render: (r) => <span className="whitespace-nowrap font-medium">{r.label}</span> },
+              { key: "d", header: "Dates", render: (r) => <span className="whitespace-nowrap text-muted-foreground">{period === "day" ? fmtDate(r.start) : `${fmtDate(r.start)} – ${fmtDate(r.end)}`}</span> },
+              { key: "l", header: "Loads", align: "right", render: (r) => r.pendingLoads ? `${r.loads} (${r.pendingLoads} pending)` : String(r.loads) },
+              { key: "g", header: "Gallons", align: "right", render: (r) => gal(r.gallons) },
+              { key: "rev", header: "Revenue", align: "right", render: (r) => money(r.revenue) },
+              { key: "e", header: "Expected GP", align: "right", render: (r) => money(r.expectedGrossProfit) },
+              { key: "a", header: "Actual GP", align: "right", render: (r) => money(r.actualGrossProfit) },
+              { key: "ppg", header: "GP / gal", align: "right", render: (r) => r.profitPerGallon === null ? "—" : <span className={ppgTone(r.profitPerGallon)}>{ppg(r.profitPerGallon)}</span> },
+              { key: "v", header: "Variance", align: "right", render: (r) => r.loads - r.pendingLoads > 0 ? <span className={r.variance < 0 ? "text-[color:var(--risk-high)]" : "text-[color:var(--risk-low)]"}>{signed(r.variance, 2)}</span> : "—" },
+            ]} />
+            <div className="text-xs text-muted-foreground">
+              Total: {rollups.totals.loads} loads · {gal(rollups.totals.gallons)} · revenue {money(rollups.totals.revenue)} · actual GP {money(rollups.totals.actualGrossProfit)} (expected {money(rollups.totals.expectedGrossProfit)}) · {ppg(rollups.totals.profitPerGallon)}/gal
+              {rollups.totals.pendingLoads ? ` · ${rollups.totals.pendingLoads} delivered load(s) still waiting on a BOL` : ""}
+            </div>
+          </div>
+        ) : <div className="text-sm text-muted-foreground">Loading…</div>}
+      </SectionCard>
       <div className="grid gap-4 @2xl:grid-cols-2">
         <SectionCard title="Delivered gallons, 14 days"><AreaChart data={daily.map((d) => ({ label: fmtDate(d.date), value: d.gallons }))} height={180} /></SectionCard>
         <SectionCard title="Gross profit by customer (delivered loads)">
